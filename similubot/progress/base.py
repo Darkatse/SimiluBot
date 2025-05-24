@@ -3,7 +3,7 @@
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, Union, Awaitable
 from enum import Enum
 
 
@@ -52,8 +52,13 @@ class ProgressInfo:
             self.details = {}
 
 
-# Type alias for progress callback functions
-ProgressCallback = Callable[[ProgressInfo], None]
+# Type alias for progress callback functions (can be sync or async)
+ProgressCallback = Union[
+    Callable[[ProgressInfo], None],
+    Callable[[ProgressInfo], Awaitable[None]],
+    Callable[..., None],
+    Callable[..., Awaitable[None]]
+]
 
 
 class ProgressTracker(ABC):
@@ -105,7 +110,31 @@ class ProgressTracker(ABC):
         self.current_progress = progress
         for callback in self.callbacks:
             try:
-                callback(progress)
+                import asyncio
+                import inspect
+
+                # Check if callback is async
+                if inspect.iscoroutinefunction(callback):
+                    # Async callback - schedule it
+                    try:
+                        loop = asyncio.get_running_loop()
+                        asyncio.create_task(callback(progress))
+                    except RuntimeError:
+                        # No running event loop, try to schedule for later
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                asyncio.run_coroutine_threadsafe(callback(progress), loop)
+                            else:
+                                loop.create_task(callback(progress))
+                        except RuntimeError:
+                            # Fallback: log the progress instead
+                            import logging
+                            logger = logging.getLogger(f"similubot.progress.{self.operation_name}")
+                            logger.info(f"Progress update (no event loop): {progress.operation} - {progress.percentage:.1f}% - {progress.message}")
+                else:
+                    # Sync callback - call directly
+                    callback(progress)
             except Exception as e:
                 # Log error but don't let callback failures stop progress tracking
                 import logging

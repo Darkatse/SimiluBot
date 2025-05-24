@@ -265,26 +265,35 @@ class DiscordProgressUpdater:
         Returns:
             Async callback function that can be added to progress trackers
         """
-        def callback(progress: ProgressInfo) -> None:
-            # Schedule the async update safely
-            try:
-                # Try to get the current event loop
-                loop = asyncio.get_running_loop()
-                asyncio.create_task(self.update_progress(progress))
-            except RuntimeError:
-                # No running event loop, try to schedule for later
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # Loop is running in another thread, use call_soon_threadsafe
-                        asyncio.run_coroutine_threadsafe(self.update_progress(progress), loop)
-                    else:
-                        # No active loop, create a new task when loop starts
-                        loop.create_task(self.update_progress(progress))
-                except RuntimeError:
-                    # Fallback: log the progress instead of updating Discord
-                    import logging
-                    logger = logging.getLogger("similubot.progress.discord")
-                    logger.info(f"Progress update (no event loop): {progress.operation} - {progress.percentage:.1f}% - {progress.message}")
+        async def callback(*args, **kwargs) -> None:
+            # Handle both calling conventions:
+            # 1. callback(progress_info: ProgressInfo)
+            # 2. callback(operation: str, message: str, percentage: float)
+
+            if len(args) == 1 and isinstance(args[0], ProgressInfo):
+                # Standard ProgressInfo object
+                progress = args[0]
+            elif len(args) >= 2:
+                # Individual parameters: operation, message, percentage
+                operation = args[0]
+                message = args[1]
+                percentage = args[2] if len(args) > 2 else 0.0
+
+                # Create ProgressInfo object from individual parameters
+                progress = ProgressInfo(
+                    operation=operation,
+                    status=ProgressStatus.IN_PROGRESS if percentage < 100 else ProgressStatus.COMPLETED,
+                    percentage=percentage * 100 if percentage <= 1.0 else percentage,  # Handle 0-1 vs 0-100 range
+                    message=message
+                )
+            else:
+                # Invalid arguments, log and return
+                import logging
+                logger = logging.getLogger("similubot.progress.discord")
+                logger.warning(f"Invalid progress callback arguments: {args}, {kwargs}")
+                return
+
+            # Update progress directly (async handling is done in the base class)
+            await self.update_progress(progress)
 
         return callback
