@@ -24,20 +24,25 @@ def main() -> int:
     Returns:
         int: Exit code (0 for success, 1 for error)
     """
-    # Set up logging
-    setup_logger()
+    # Load configuration first to get logging settings
+    config = ConfigManager()
+
+    # Set up logging with configuration values
+    setup_logger(
+        log_level=config.get_log_level(),
+        log_file=config.get_log_file(),
+        max_size=config.get_log_max_size(),
+        backup_count=config.get_log_backup_count()
+    )
     logger = logging.getLogger("similubot")
 
     logger.info("=" * 50)
     logger.info("SimiluBot Starting Up")
     logger.info("=" * 50)
-
+    logger.info("✅ Configuration loaded successfully")
+    logger.debug(f"Logging configured - Level: {config.get_log_level()}, File: {config.get_log_file()}")
+    
     try:
-        # Load configuration
-        logger.info("Loading configuration...")
-        config = ConfigManager()
-        logger.info("✅ Configuration loaded successfully")
-
         # Get Discord token from configuration
         logger.info("Retrieving Discord bot token...")
         try:
