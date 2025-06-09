@@ -139,6 +139,37 @@ class TestCatboxClient:
             result = self.catbox_client.format_file_size(size_bytes)
             assert result == expected, f"Expected {expected}, got {result}"
 
+    @pytest.mark.asyncio
+    async def test_user_agent_spoofing(self):
+        """Test that User-Agent spoofing is properly configured."""
+        # Test User-Agent string
+        assert hasattr(self.catbox_client, 'USER_AGENT')
+        assert 'Mozilla' in self.catbox_client.USER_AGENT
+        assert 'Chrome' in self.catbox_client.USER_AGENT
+
+        # Test session creation with headers
+        session = await self.catbox_client._get_session()
+        assert session is not None
+
+        # Check that User-Agent is in default headers
+        default_headers = dict(session._default_headers)
+        assert 'User-Agent' in default_headers
+        assert default_headers['User-Agent'] == self.catbox_client.USER_AGENT
+
+        # Check that browser-like headers are present
+        expected_headers = ['Accept', 'Accept-Language', 'Accept-Encoding', 'DNT', 'Connection']
+        for header in expected_headers:
+            assert header in default_headers, f"Missing browser header: {header}"
+
+        # Test additional request headers
+        test_url = "https://files.catbox.moe/test.mp3"
+        additional_headers = self.catbox_client._get_request_headers(test_url)
+
+        assert 'Referer' in additional_headers
+        assert 'Origin' in additional_headers
+        assert additional_headers['Referer'] == 'https://catbox.moe/'
+        assert additional_headers['Origin'] == 'https://catbox.moe'
+
     def teardown_method(self):
         """Clean up after tests."""
         # Note: cleanup is async but we can't await in teardown_method

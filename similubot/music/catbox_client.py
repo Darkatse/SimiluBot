@@ -1,4 +1,11 @@
-"""Catbox audio file client for SimiluBot."""
+"""
+Catbox audio file client for SimiluBot.
+
+This client includes User-Agent spoofing and browser-like headers to prevent
+HTTP errors like "Server disconnected" that may occur when making requests
+to Catbox servers. The client mimics a real Chrome browser to avoid anti-bot
+detection measures.
+"""
 
 import logging
 import re
@@ -16,7 +23,7 @@ from similubot.progress.base import ProgressTracker, ProgressInfo, ProgressStatu
 class CatboxProgressTracker(ProgressTracker):
     """
     Progress tracker for Catbox audio file processing.
-    
+
     Handles progress updates for Catbox file validation and metadata extraction.
     """
 
@@ -54,7 +61,7 @@ class CatboxAudioInfo:
 class CatboxClient:
     """
     Catbox audio file client for SimiluBot.
-    
+
     Handles validation, metadata extraction, and streaming preparation
     for audio files hosted on Catbox.
     """
@@ -63,6 +70,13 @@ class CatboxClient:
     SUPPORTED_FORMATS = {
         'mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'opus', 'wma'
     }
+
+    # User-Agent string to mimic a real browser and avoid anti-bot measures
+    # Using Chrome on Windows 10 - one of the most common browser/OS combinations
+    USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
 
     def __init__(self, temp_dir: str = "./temp"):
         """
@@ -73,21 +87,101 @@ class CatboxClient:
         """
         self.logger = logging.getLogger("similubot.music.catbox_client")
         self.temp_dir = temp_dir
-        
+
         # HTTP session for requests
         self._session: Optional[aiohttp.ClientSession] = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """
-        Get or create HTTP session.
+        Get or create HTTP session with browser-like headers.
 
         Returns:
-            aiohttp ClientSession
+            aiohttp ClientSession configured with realistic headers
         """
         if self._session is None or self._session.closed:
             timeout = aiohttp.ClientTimeout(total=30, connect=10)
-            self._session = aiohttp.ClientSession(timeout=timeout)
+
+            # Headers to make requests appear more browser-like
+            headers = {
+                'User-Agent': self.USER_AGENT,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',  # Do Not Track
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Cache-Control': 'max-age=0'
+            }
+
+            self._session = aiohttp.ClientSession(
+                timeout=timeout,
+                headers=headers,
+                connector=aiohttp.TCPConnector(
+                    limit=10,  # Connection pool limit
+                    limit_per_host=5,  # Per-host connection limit
+                    ttl_dns_cache=300,  # DNS cache TTL
+                    use_dns_cache=True,
+                )
+            )
+
+            self.logger.debug(f"Created HTTP session with User-Agent: {self.USER_AGENT}")
         return self._session
+
+    def _get_request_headers(self, url: str) -> Dict[str, str]:
+        """
+        Get additional headers for specific requests to make them more browser-like.
+
+        Args:
+            url: The URL being requested
+
+        Returns:
+            Dictionary of additional headers
+        """
+        return {
+            'Referer': 'https://catbox.moe/',  # Make it look like we came from the main site
+            'Origin': 'https://catbox.moe',
+            'Sec-Fetch-User': '?1',
+            'Pragma': 'no-cache',
+        }
+
+    async def _make_head_request_with_retry(self, url: str, max_retries: int = 2) -> Optional[aiohttp.ClientResponse]:
+        """
+        Make a HEAD request with retry logic for better reliability.
+
+        Args:
+            url: URL to request
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            Response object if successful, None if all retries failed
+        """
+        session = await self._get_session()
+        additional_headers = self._get_request_headers(url)
+
+        for attempt in range(max_retries + 1):
+            try:
+                self.logger.debug(f"HEAD request attempt {attempt + 1}/{max_retries + 1} to {url}")
+
+                async with session.head(url, headers=additional_headers) as response:
+                    self.logger.debug(f"Response: HTTP {response.status}")
+
+                    # Return response for any status - let caller handle status codes
+                    return response
+
+            except aiohttp.ClientError as e:
+                self.logger.warning(f"Request attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries:
+                    # Wait a bit before retrying (exponential backoff)
+                    wait_time = 2 ** attempt
+                    self.logger.debug(f"Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    self.logger.error(f"All {max_retries + 1} attempts failed for {url}")
+
+        return None
 
     def is_catbox_url(self, url: str) -> bool:
         """
@@ -102,22 +196,22 @@ class CatboxClient:
         try:
             # Parse URL
             parsed = urlparse(url)
-            
+
             # Check domain
             if parsed.netloc.lower() != 'files.catbox.moe':
                 return False
-            
+
             # Check if it has a file extension
             path = parsed.path.lower()
             if not path or '.' not in path:
                 return False
-            
+
             # Extract file extension
             file_extension = path.split('.')[-1]
-            
+
             # Check if it's a supported audio format
             return file_extension in self.SUPPORTED_FORMATS
-            
+
         except Exception as e:
             self.logger.debug(f"Error parsing URL {url}: {e}")
             return False
@@ -135,7 +229,7 @@ class CatboxClient:
         try:
             parsed = urlparse(url)
             filename = os.path.basename(parsed.path)
-            
+
             # Remove extension for title
             if '.' in filename:
                 return "Catbox - " + filename.rsplit('.', 1)[0]
@@ -178,33 +272,41 @@ class CatboxClient:
 
         try:
             self.logger.debug(f"Extracting info from Catbox URL: {url}")
-            
-            session = await self._get_session()
-            
-            # Make HEAD request to get file metadata
-            async with session.head(url) as response:
-                if response.status != 200:
-                    self.logger.error(f"Catbox file not accessible: {url} (status: {response.status})")
-                    return None
-                
-                # Extract metadata from headers
-                content_length = response.headers.get('content-length')
-                file_size = int(content_length) if content_length else None
-                
-                # Extract filename and format
-                filename = self._extract_filename_from_url(url)
-                file_format = self._get_file_format_from_url(url)
-                
-                return CatboxAudioInfo(
-                    title=filename,
-                    duration=0,  # Cannot determine duration without downloading
-                    file_path=url,  # Use URL directly for streaming
-                    url=url,
-                    uploader="Catbox",
-                    file_size=file_size,
-                    file_format=file_format,
-                    thumbnail_url=None
-                )
+
+            # Use retry logic for better reliability
+            response = await self._make_head_request_with_retry(url)
+            if not response:
+                self.logger.error(f"Failed to get response from Catbox URL after retries: {url}")
+                return None
+
+            self.logger.debug(f"Response status: {response.status}, headers: {dict(response.headers)}")
+
+            if response.status != 200:
+                self.logger.error(f"Catbox file not accessible: {url} (HTTP {response.status})")
+                if response.status == 403:
+                    self.logger.warning("HTTP 403 - Possible anti-bot detection despite User-Agent spoofing")
+                elif response.status == 429:
+                    self.logger.warning("HTTP 429 - Rate limited by Catbox servers")
+                return None
+
+            # Extract metadata from headers
+            content_length = response.headers.get('content-length')
+            file_size = int(content_length) if content_length else None
+
+            # Extract filename and format
+            filename = self._extract_filename_from_url(url)
+            file_format = self._get_file_format_from_url(url)
+
+            return CatboxAudioInfo(
+                title=filename,
+                duration=0,  # Cannot determine duration without downloading
+                file_path=url,  # Use URL directly for streaming
+                url=url,
+                uploader="Catbox",
+                file_size=file_size,
+                file_format=file_format,
+                thumbnail_url=None
+            )
 
         except aiohttp.ClientError as e:
             self.logger.error(f"Network error accessing Catbox URL {url}: {e}")
@@ -257,13 +359,29 @@ class CatboxClient:
                 message="Checking file accessibility..."
             )
 
-            # Verify file is accessible
-            session = await self._get_session()
-            async with session.head(url) as response:
-                if response.status != 200:
-                    error_msg = f"Catbox file not accessible (HTTP {response.status})"
-                    progress_tracker.fail(error_msg)
-                    return False, None, error_msg
+            # Verify file is accessible with browser-like headers and retry logic
+            self.logger.debug(f"Validating Catbox file accessibility: {url}")
+            response = await self._make_head_request_with_retry(url)
+            if not response:
+                error_msg = "Failed to connect to Catbox server after retries"
+                progress_tracker.fail(error_msg)
+                return False, None, error_msg
+
+            self.logger.debug(f"Validation response status: {response.status}")
+
+            if response.status != 200:
+                error_msg = f"Catbox file not accessible (HTTP {response.status})"
+                if response.status == 403:
+                    error_msg += " - Possible anti-bot detection"
+                    self.logger.warning("HTTP 403 during validation - anti-bot measures may be active")
+                elif response.status == 429:
+                    error_msg += " - Rate limited"
+                    self.logger.warning("HTTP 429 during validation - rate limited by server")
+                elif response.status == 404:
+                    error_msg += " - File not found"
+
+                progress_tracker.fail(error_msg)
+                return False, None, error_msg
 
             # Complete progress tracking
             file_size_mb = audio_info.file_size / (1024 * 1024) if audio_info.file_size else 0
