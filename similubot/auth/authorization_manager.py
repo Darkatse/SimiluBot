@@ -180,7 +180,7 @@ class AuthorizationManager:
             True if user is admin, False otherwise
         """
         if not self.auth_enabled:
-            return False  # No admin privileges when auth is disabled
+            return True  # When auth is disabled, everyone has admin privileges
         
         user_id = str(user_id)
         return user_id in self.admin_ids or (
@@ -311,3 +311,4 @@ class AuthorizationManager:
             "no_access_users": len([u for u in self.user_permissions.values() if u.permission_level == PermissionLevel.NONE])
         }
         return stats
+
