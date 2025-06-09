@@ -25,18 +25,20 @@ class MegaDownloader:
     # - https://mega.nz/folder/ABCDEF#GHIJKLMNO (folder links)
     MEGA_LINK_PATTERN = r'https?://mega\.nz/(?:file/[^/\s#]+(?:#[^/\s]+)?|folder/[^/\s#]+(?:#[^/\s]+)?|#!?[^/\s!]+(?:![^/\s]+)?)'
 
-    def __init__(self, temp_dir: str = "./temp", max_files: int = 50):
+    def __init__(self, temp_dir: str = "./temp", max_files: int = 50, check_availability: bool = True):
         """
         Initialize the MEGA downloader.
 
         Args:
             temp_dir: Directory to store downloaded files
             max_files: Maximum number of files to keep in temp directory
+            check_availability: Whether to check MegaCMD availability during initialization
         """
         self.logger = logging.getLogger("similubot.downloader.mega")
         self.temp_dir = temp_dir
         self.max_files = max_files
         self.tracker_file = os.path.join(self.temp_dir, "download_tracker.json")
+        self._available = False
 
         # Ensure temp directory exists
         if not os.path.exists(self.temp_dir):
@@ -46,9 +48,27 @@ class MegaDownloader:
         # Initialize tracking system
         self._init_tracking_system()
 
-        # Check if MegaCMD is available
-        self._check_megacmd_availability()
-        self.logger.debug("Initialized MegaCMD downloader")
+        # Check if MegaCMD is available (if requested)
+        if check_availability:
+            try:
+                self._check_megacmd_availability()
+                self._available = True
+                self.logger.debug("Initialized MegaCMD downloader")
+            except RuntimeError as e:
+                self.logger.error(f"MegaCMD not available: {e}")
+                self._available = False
+        else:
+            self.logger.info("MegaCMD availability check skipped (MEGA functionality disabled)")
+            self._available = False
+
+    def is_available(self) -> bool:
+        """
+        Check if MEGA downloader is available and ready to use.
+
+        Returns:
+            True if MegaCMD is available and functional, False otherwise
+        """
+        return self._available
 
     def _check_megacmd_availability(self) -> None:
         """

@@ -27,7 +27,7 @@ class MegaCommands:
     def __init__(
         self,
         config: ConfigManager,
-        downloader: MegaDownloader,
+        downloader: Optional[MegaDownloader],
         converter: AudioConverter,
         catbox_uploader: CatboxUploader,
         discord_uploader: DiscordUploader
@@ -37,7 +37,7 @@ class MegaCommands:
 
         Args:
             config: Configuration manager
-            downloader: MEGA downloader instance
+            downloader: MEGA downloader instance (None if MEGA is disabled)
             converter: Audio converter instance
             catbox_uploader: CatBox uploader instance
             discord_uploader: Discord uploader instance
@@ -49,6 +49,15 @@ class MegaCommands:
         self.catbox_uploader = catbox_uploader
         self.discord_uploader = discord_uploader
 
+    def is_available(self) -> bool:
+        """
+        Check if MEGA commands are available.
+
+        Returns:
+            True if MEGA downloader is available, False otherwise
+        """
+        return self.downloader is not None and self.downloader.is_available()
+
     def register_commands(self, registry: CommandRegistry) -> None:
         """
         Register MEGA commands with the command registry.
@@ -56,6 +65,10 @@ class MegaCommands:
         Args:
             registry: Command registry instance
         """
+        if not self.is_available():
+            self.logger.info("MEGA commands not registered (not available)")
+            return
+
         usage_examples = [
             "!mega https://mega.nz/file/ABC123def456 - Download with default bitrate",
             "!mega https://mega.nz/file/ABC123def456 192 - Download with 192 kbps quality",
@@ -88,6 +101,10 @@ class MegaCommands:
             url: MEGA link to download
             bitrate: AAC bitrate in kbps (optional)
         """
+        if not self.is_available():
+            await ctx.reply("❌ MEGA functionality is not available. Please check if MegaCMD is installed and MEGA is enabled in the configuration.")
+            return
+
         if not self.downloader.is_mega_link(url):
             await ctx.reply("❌ Invalid MEGA link. Please provide a valid MEGA link.")
             return
@@ -108,6 +125,10 @@ class MegaCommands:
             url: MEGA link to process
             bitrate: AAC bitrate in kbps (optional)
         """
+        if not self.is_available():
+            await message.reply("❌ MEGA functionality is not available. Please check if MegaCMD is installed and MEGA is enabled in the configuration.")
+            return
+
         # Use default bitrate if not specified
         if bitrate is None:
             bitrate = self.config.get_default_bitrate()

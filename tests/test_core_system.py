@@ -32,7 +32,7 @@ class TestConfigurationManagement(unittest.TestCase):
     def test_config_value_retrieval(self):
         """Test configuration value retrieval."""
         config_data = {
-            "mega": {"default_bitrate": 128, "upload_service": "catbox"},
+            "mega": {"enabled": True, "default_bitrate": 128, "upload_service": "catbox"},
             "novelai": {"upload_service": "discord"}
         }
 
@@ -41,6 +41,29 @@ class TestConfigurationManagement(unittest.TestCase):
 
             # Test basic config loading
             self.assertIsNotNone(config)
+
+    def test_mega_enabled_configuration(self):
+        """Test MEGA enabled configuration option."""
+        # Test with MEGA enabled
+        config_data = {"mega": {"enabled": True}}
+        with patch('similubot.utils.config_manager.ConfigManager._load_config'):
+            config = ConfigManager("test_config.json")
+            config.config = config_data
+            self.assertTrue(config.is_mega_enabled())
+
+        # Test with MEGA disabled
+        config_data = {"mega": {"enabled": False}}
+        with patch('similubot.utils.config_manager.ConfigManager._load_config'):
+            config = ConfigManager("test_config.json")
+            config.config = config_data
+            self.assertFalse(config.is_mega_enabled())
+
+        # Test with MEGA config missing (should default to True for backward compatibility)
+        config_data = {}
+        with patch('similubot.utils.config_manager.ConfigManager._load_config'):
+            config = ConfigManager("test_config.json")
+            config.config = config_data
+            self.assertTrue(config.is_mega_enabled())
 
 
 class TestUploaders(unittest.TestCase):

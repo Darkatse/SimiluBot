@@ -13,6 +13,10 @@ authorization:
   config_path: "config/authorization.json"  # Path to authorization config file
   notify_admins_on_unauthorized: true  # Notify admins when unauthorized access is attempted
 
+# MEGA Download Configuration
+mega:
+  enabled: true  # Set to false to disable MEGA functionality (removes MegaCMD dependency)
+
 # Download Configuration
 download:
   temp_dir: "./temp"

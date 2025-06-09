@@ -90,6 +90,7 @@ def _log_bot_configuration(logger: logging.Logger, config: ConfigManager, bot: S
     logger.info("📋 Bot Configuration Summary:")
     logger.info(f"   Command Prefix: {config.get('discord.command_prefix', '!')}")
     logger.info(f"   Authorization: {'✅ Enabled' if config.is_auth_enabled() else '❌ Disabled'}")
+    logger.info(f"   MEGA Functionality: {'✅ Enabled' if config.is_mega_enabled() and bot.mega_commands.is_available() else '❌ Disabled'}")
     logger.info(f"   Default Bitrate: {config.get_default_bitrate()} kbps")
     logger.info(f"   MEGA Upload Service: {config.get_mega_upload_service()}")
     logger.info(f"   NovelAI Available: {'✅ Yes' if bot.image_generator else '❌ No'}")

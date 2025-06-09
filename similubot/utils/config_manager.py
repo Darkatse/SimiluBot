@@ -215,6 +215,15 @@ class ConfigManager:
             raise ValueError("NovelAI API key not set in configuration")
         return api_key
 
+    def is_mega_enabled(self) -> bool:
+        """
+        Check if MEGA functionality is enabled.
+
+        Returns:
+            True if MEGA is enabled, False otherwise
+        """
+        return self.get('mega.enabled', True)
+
     def is_auth_enabled(self) -> bool:
         """
         Check if the authorization system is enabled.

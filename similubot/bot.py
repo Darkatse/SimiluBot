@@ -80,8 +80,21 @@ class SimiluBot:
             os.makedirs(temp_dir)
             self.logger.debug(f"Created temporary directory: {temp_dir}")
 
-        # Initialize downloader
-        self.downloader = MegaDownloader(temp_dir=temp_dir)
+        # Initialize MEGA downloader (if enabled)
+        if self.config.is_mega_enabled():
+            try:
+                self.downloader = MegaDownloader(temp_dir=temp_dir, check_availability=True)
+                if self.downloader.is_available():
+                    self.logger.info("MEGA downloader initialized successfully")
+                else:
+                    self.logger.warning("MEGA downloader initialization failed - MegaCMD not available")
+                    self.downloader = None
+            except Exception as e:
+                self.logger.error(f"Failed to initialize MEGA downloader: {e}")
+                self.downloader = None
+        else:
+            self.logger.info("MEGA functionality disabled in configuration")
+            self.downloader = None
 
         # Initialize converter
         self.converter = AudioConverter(
@@ -181,8 +194,11 @@ class SimiluBot:
 
     def _register_commands(self) -> None:
         """Register all commands with the command registry."""
-        # Register MEGA commands
-        self.mega_commands.register_commands(self.command_registry)
+        # Register MEGA commands (if available)
+        if self.mega_commands.is_available():
+            self.mega_commands.register_commands(self.command_registry)
+        else:
+            self.logger.info("MEGA commands not registered (not available)")
 
         # Register NovelAI commands (if available)
         if self.novelai_commands.is_available():
@@ -216,12 +232,16 @@ class SimiluBot:
     def _setup_event_handlers(self) -> None:
         """Set up Discord event handlers."""
         # Initialize event handler
+        mega_processor_callback = None
+        if self.mega_commands.is_available():
+            mega_processor_callback = self.mega_commands.process_mega_link
+
         self.event_handler = EventHandler(
             bot=self.bot,
             auth_manager=self.auth_manager,
             unauthorized_handler=self.unauthorized_handler,
             mega_downloader=self.downloader,
-            mega_processor_callback=self.mega_commands.process_mega_link
+            mega_processor_callback=mega_processor_callback
         )
 
         self.logger.debug("Event handlers set up")

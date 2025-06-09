@@ -22,7 +22,7 @@ class EventHandler:
         bot: commands.Bot,
         auth_manager: AuthorizationManager,
         unauthorized_handler: UnauthorizedAccessHandler,
-        mega_downloader: MegaDownloader,
+        mega_downloader: Optional[MegaDownloader] = None,
         mega_processor_callback: Optional[callable] = None
     ):
         """
@@ -32,7 +32,7 @@ class EventHandler:
             bot: Discord bot instance
             auth_manager: Authorization manager
             unauthorized_handler: Unauthorized access handler
-            mega_downloader: MEGA downloader instance
+            mega_downloader: MEGA downloader instance (None if MEGA is disabled)
             mega_processor_callback: Callback for processing MEGA links
         """
         self.logger = logging.getLogger("similubot.events")
@@ -110,6 +110,10 @@ class EventHandler:
         Args:
             message: Discord message to check for MEGA links
         """
+        # Skip if MEGA functionality is not available
+        if not self.mega_downloader or not self.mega_downloader.is_available():
+            return
+
         # Skip if message is empty or starts with command prefix
         if not message.content or message.content.startswith(self.bot.command_prefix):
             return
@@ -123,7 +127,7 @@ class EventHandler:
 
         # Check authorization for MEGA auto-detection
         if not self.auth_manager.is_authorized(
-            message.author.id, 
+            str(message.author.id),
             feature_name="mega_auto_detection"
         ):
             await self.unauthorized_handler.handle_unauthorized_access(
