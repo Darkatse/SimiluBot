@@ -68,7 +68,8 @@ class MusicCommands:
             "!music now - Show current song progress",
             "!music skip - Skip to next song",
             "!music stop - Stop playback and clear queue",
-            "!music jump <number> - Jump to specific position in queue"
+            "!music jump <number> - Jump to specific position in queue",
+            "!music seek <time> - Seek to position (e.g., 1:30, +30, -1:00)"
         ]
 
         help_text = (
@@ -110,7 +111,9 @@ class MusicCommands:
         elif subcommand in ["stop", "disconnect", "leave"]:
             await self._handle_stop_command(ctx)
         elif subcommand in ["jump", "goto"]:
-            await self._handle_jump_command(ctx, args[1:])
+            await self._handle_jump_command(ctx, list(args[1:]))
+        elif subcommand in ["seek", "goto_time"]:
+            await self._handle_seek_command(ctx, list(args[1:]))
         elif self.music_player.is_supported_url(subcommand):
             # First argument is a supported audio URL (YouTube or Catbox)
             await self._handle_play_command(ctx, subcommand)
@@ -514,6 +517,89 @@ class MusicCommands:
             self.logger.error(f"Error in jump command: {e}", exc_info=True)
             await ctx.reply("❌ Error jumping to position")
 
+    async def _handle_seek_command(self, ctx: commands.Context, args: List[str]) -> None:
+        """
+        Handle seek command.
+
+        Args:
+            ctx: Discord command context
+            args: Command arguments
+        """
+        if not args:
+            # Show seek command help
+            embed = discord.Embed(
+                title="🎯 Seek Command Help",
+                description="Seek to a specific position in the currently playing song",
+                color=discord.Color.blue()
+            )
+
+            examples = self.music_player.seek_manager.get_seek_examples()
+            examples_text = "\n".join(examples)
+
+            embed.add_field(
+                name="Examples",
+                value=examples_text,
+                inline=False
+            )
+
+            embed.add_field(
+                name="Supported Formats",
+                value="• `mm:ss` - Jump to absolute position\n"
+                      "• `hh:mm:ss` - Jump to absolute position with hours\n"
+                      "• `+mm:ss` - Seek forward relative to current position\n"
+                      "• `-mm:ss` - Seek backward relative to current position\n"
+                      "• `+seconds` - Seek forward by seconds\n"
+                      "• `-seconds` - Seek backward by seconds",
+                inline=False
+            )
+
+            await ctx.reply(embed=embed)
+            return
+
+        try:
+            # Check if guild exists
+            if not ctx.guild:
+                await ctx.reply("❌ This command can only be used in a server")
+                return
+
+            time_str = args[0]
+
+            # Perform seek operation
+            success, error = await self.music_player.seek_to_position(ctx.guild.id, time_str)
+
+            if not success:
+                await ctx.reply(f"❌ {error}")
+                return
+
+            # Parse the time for display purposes
+            seek_result = self.music_player.seek_manager.parse_seek_time(time_str)
+            if seek_result.success and seek_result.target_position is not None:
+                is_relative = self.music_player.seek_manager.is_relative_seek(time_str)
+
+                if is_relative:
+                    # For relative seeks, show the direction
+                    direction = "forward" if seek_result.target_position >= 0 else "backward"
+                    formatted_time = self.music_player.seek_manager.format_time(abs(seek_result.target_position))
+                    description = f"Sought {direction} by {formatted_time}"
+                else:
+                    # For absolute seeks, show the target position
+                    formatted_time = self.music_player.seek_manager.format_time(seek_result.target_position)
+                    description = f"Sought to {formatted_time}"
+            else:
+                description = f"Sought to position: {time_str}"
+
+            embed = discord.Embed(
+                title="🎯 Seek Completed",
+                description=description,
+                color=discord.Color.green()
+            )
+
+            await ctx.reply(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error in seek command: {e}", exc_info=True)
+            await ctx.reply("❌ Error seeking to position")
+
     async def _show_music_help(self, ctx: commands.Context) -> None:
         """
         Show music command help.
@@ -534,7 +620,8 @@ class MusicCommands:
             "`!music now` - Show current song\n"
             "`!music skip` - Skip current song\n"
             "`!music stop` - Stop and clear queue\n"
-            "`!music jump <number>` - Jump to position"
+            "`!music jump <number>` - Jump to position\n"
+            "`!music seek <time>` - Seek to position (e.g., 1:30, +30, -1:00)"
         )
 
         embed.add_field(

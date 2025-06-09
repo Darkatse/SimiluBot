@@ -197,6 +197,48 @@ class MusicProgressTracker(ProgressTracker):
 
         return position
 
+    def seek_to_position(self, target_seconds: float) -> None:
+        """
+        Update progress tracking after a seek operation.
+
+        Args:
+            target_seconds: Position that was seeked to in seconds
+        """
+        if not self._playback_start_time or not self._song_duration:
+            self.logger.warning("Cannot seek: playback not started or no song duration")
+            return
+
+        current_time = time.time()
+
+        # Adjust the start time to account for the seek position
+        # New start time = current time - target position
+        self._playback_start_time = current_time - target_seconds
+
+        # Reset paused duration tracking
+        self._total_paused_duration = 0.0
+
+        # Clear any existing pause state
+        self._pause_start_time = None
+
+        # Calculate percentage for the new position
+        percentage = min((target_seconds / self._song_duration * 100), 100.0)
+
+        # Notify callbacks of seek operation
+        progress = ProgressInfo(
+            operation=self.operation_name,
+            status=ProgressStatus.IN_PROGRESS,
+            percentage=percentage,
+            message=f"Sought to: {self.format_time(target_seconds)}/{self.format_time(self._song_duration)}",
+            details={
+                "song_duration": self._song_duration,
+                "current_position": target_seconds,
+                "playback_state": "playing"
+            }
+        )
+        self._notify_callbacks(progress)
+
+        self.logger.debug(f"Seek completed: updated timing to position {target_seconds}s")
+
     @staticmethod
     def format_time(seconds: float) -> str:
         """

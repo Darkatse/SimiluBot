@@ -13,6 +13,7 @@ from .catbox_client import CatboxClient, CatboxAudioInfo
 from .audio_source import UnifiedAudioInfo, AudioSourceType
 from .queue_manager import QueueManager, Song
 from .voice_manager import VoiceManager
+from .seek_manager import SeekManager, SeekResult
 from similubot.progress.base import ProgressCallback
 
 
@@ -38,6 +39,7 @@ class MusicPlayer:
         self.youtube_client = YouTubeClient(temp_dir)
         self.catbox_client = CatboxClient(temp_dir)
         self.voice_manager = VoiceManager(bot)
+        self.seek_manager = SeekManager()
 
         # Guild-specific queue managers
         self._queue_managers: Dict[int, QueueManager] = {}
@@ -385,6 +387,142 @@ class MusicPlayer:
             del self._playback_paused_times[guild_id]
         if guild_id in self._total_paused_duration:
             del self._total_paused_duration[guild_id]
+
+    async def seek_to_position(self, guild_id: int, time_str: str) -> tuple[bool, Optional[str]]:
+        """
+        Seek to a specific position in the currently playing song.
+
+        Args:
+            guild_id: Discord guild ID
+            time_str: Time string (e.g., "1:30", "2:15:45", "+30", "-1:00")
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        try:
+            # Check if music is currently playing
+            if not self.voice_manager.is_connected(guild_id):
+                return False, "No active music playback"
+
+            # Get current song
+            queue_manager = self.get_queue_manager(guild_id)
+            current_song = await queue_manager.get_current_song()
+            if not current_song:
+                return False, "No song currently playing"
+
+            # Parse seek time
+            seek_result = self.seek_manager.parse_seek_time(time_str)
+            if not seek_result.success or seek_result.target_position is None:
+                return False, seek_result.error_message or "Failed to parse seek time"
+
+            # Get current position and song duration
+            current_position = self.get_current_playback_position(guild_id) or 0.0
+            song_duration = float(current_song.duration)
+
+            # Validate seek position
+            is_relative = self.seek_manager.is_relative_seek(time_str)
+            validation_result = self.seek_manager.validate_seek_position(
+                seek_result.target_position,
+                current_position,
+                song_duration,
+                is_relative
+            )
+
+            if not validation_result.success or validation_result.target_position is None:
+                return False, validation_result.error_message or "Invalid seek position"
+
+            target_position = validation_result.target_position
+
+            # Perform the seek operation
+            success = await self._perform_seek(guild_id, target_position, current_song)
+            if not success:
+                return False, "Failed to seek to position"
+
+            self.logger.info(f"Successfully sought to {self.seek_manager.format_time(target_position)} in guild {guild_id}")
+            return True, None
+
+        except Exception as e:
+            error_msg = f"Error seeking to position: {e}"
+            self.logger.error(error_msg, exc_info=True)
+            return False, error_msg
+
+    async def _perform_seek(self, guild_id: int, target_seconds: float, song: Song) -> bool:
+        """
+        Perform the actual seek operation by recreating the audio source.
+
+        Args:
+            guild_id: Discord guild ID
+            target_seconds: Target position in seconds
+            song: Current song object
+
+        Returns:
+            True if seek was successful, False otherwise
+        """
+        try:
+            # Get the audio file path
+            audio_file_path = self._current_audio_files.get(guild_id)
+            if not audio_file_path:
+                self.logger.error(f"No audio file path available for seek in guild {guild_id}")
+                return False
+
+            # Stop current playback
+            self.voice_manager.stop_audio(guild_id)
+
+            # Create new audio source with seek position
+            seek_options = f'-ss {target_seconds} -vn'
+            audio_source = discord.FFmpegPCMAudio(
+                audio_file_path,
+                options=seek_options
+            )
+
+            # Update timing tracking for the new position
+            self._update_timing_after_seek(guild_id, target_seconds)
+
+            # Start playback from new position
+            playback_finished = asyncio.Event()
+
+            def after_playback(error):
+                if error:
+                    self.logger.error(f"Playback error after seek: {error}")
+                playback_finished.set()
+
+            success = await self.voice_manager.play_audio(
+                guild_id, audio_source, after_playback
+            )
+
+            if success:
+                self.logger.debug(f"Seek successful: started playback from {target_seconds}s")
+            else:
+                self.logger.error(f"Failed to start playback after seek in guild {guild_id}")
+
+            return success
+
+        except Exception as e:
+            self.logger.error(f"Error performing seek operation: {e}", exc_info=True)
+            return False
+
+    def _update_timing_after_seek(self, guild_id: int, target_seconds: float) -> None:
+        """
+        Update playback timing tracking after a seek operation.
+
+        Args:
+            guild_id: Discord guild ID
+            target_seconds: Position that was seeked to
+        """
+        current_time = time.time()
+
+        # Adjust the start time to account for the seek position
+        # New start time = current time - target position
+        self._playback_start_times[guild_id] = current_time - target_seconds
+
+        # Reset paused duration tracking
+        self._total_paused_duration[guild_id] = 0.0
+
+        # Clear any existing pause state
+        if guild_id in self._playback_paused_times:
+            del self._playback_paused_times[guild_id]
+
+        self.logger.debug(f"Updated timing after seek: new start time accounts for {target_seconds}s offset")
 
     async def _start_playback(
         self,
