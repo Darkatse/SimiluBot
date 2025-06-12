@@ -137,7 +137,8 @@ class SimiluBot:
         # Initialize music player
         self.music_player = MusicPlayer(
             bot=self.bot,
-            temp_dir=temp_dir
+            temp_dir=temp_dir,
+            config=self.config
         )
 
         # Initialize command registry

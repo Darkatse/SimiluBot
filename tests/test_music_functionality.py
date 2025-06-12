@@ -25,7 +25,11 @@ class TestYouTubeClient(unittest.TestCase):
     def setUp(self):
         """Set up test environment."""
         self.temp_dir = tempfile.mkdtemp()
-        self.client = YouTubeClient(self.temp_dir)
+        self.mock_config = MagicMock(spec=ConfigManager)
+        # Configure mock config for basic functionality
+        self.mock_config.is_potoken_enabled.return_value = False
+        self.mock_config.is_youtube_auto_fallback_enabled.return_value = True
+        self.client = YouTubeClient(self.temp_dir, self.mock_config)
 
     def tearDown(self):
         """Clean up test environment."""

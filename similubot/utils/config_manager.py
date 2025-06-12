@@ -551,3 +551,131 @@ class ConfigManager:
                 continue
 
         return available
+
+    # Music Configuration Methods
+    def is_music_enabled(self) -> bool:
+        """
+        Check if music functionality is enabled.
+
+        Returns:
+            True if music is enabled, False otherwise
+        """
+        return self.get('music.enabled', True)
+
+    def get_music_max_queue_size(self) -> int:
+        """
+        Get the maximum queue size for music.
+
+        Returns:
+            Maximum queue size
+        """
+        return self.get('music.max_queue_size', 100)
+
+    def get_music_max_song_duration(self) -> int:
+        """
+        Get the maximum song duration in seconds.
+
+        Returns:
+            Maximum song duration in seconds
+        """
+        return self.get('music.max_song_duration', 3600)
+
+    def get_music_auto_disconnect_timeout(self) -> int:
+        """
+        Get the auto-disconnect timeout in seconds.
+
+        Returns:
+            Auto-disconnect timeout in seconds
+        """
+        return self.get('music.auto_disconnect_timeout', 300)
+
+    def get_music_volume(self) -> float:
+        """
+        Get the default music volume.
+
+        Returns:
+            Default volume (0.0-1.0)
+        """
+        return self.get('music.volume', 0.5)
+
+    # YouTube PoToken Configuration Methods
+    def is_youtube_auto_fallback_enabled(self) -> bool:
+        """
+        Check if automatic fallback on bot detection is enabled.
+
+        Returns:
+            True if auto fallback is enabled, False otherwise
+        """
+        return self.get('music.youtube.auto_fallback_on_bot_detection', True)
+
+    def is_potoken_enabled(self) -> bool:
+        """
+        Check if PoToken functionality is enabled.
+
+        Returns:
+            True if PoToken is enabled, False otherwise
+        """
+        return self.get('music.youtube.potoken.enabled', False)
+
+    def is_potoken_auto_generate_enabled(self) -> bool:
+        """
+        Check if automatic PoToken generation is enabled.
+
+        Returns:
+            True if auto generation is enabled, False otherwise
+        """
+        return self.get('music.youtube.potoken.auto_generate', True)
+
+    def get_potoken_client(self) -> str:
+        """
+        Get the PoToken client type.
+
+        Returns:
+            Client type for PoToken usage
+        """
+        return self.get('music.youtube.potoken.client', 'WEB')
+
+    def get_manual_visitor_data(self) -> str:
+        """
+        Get the manual visitor data for PoToken.
+
+        Returns:
+            Manual visitor data string
+        """
+        return self.get('music.youtube.potoken.manual.visitor_data', '')
+
+    def get_manual_po_token(self) -> str:
+        """
+        Get the manual PoToken.
+
+        Returns:
+            Manual PoToken string
+        """
+        return self.get('music.youtube.potoken.manual.po_token', '')
+
+    def is_potoken_cache_enabled(self) -> bool:
+        """
+        Check if PoToken caching is enabled.
+
+        Returns:
+            True if caching is enabled, False otherwise
+        """
+        return self.get('music.youtube.potoken.cache_enabled', True)
+
+    def is_fallback_web_client_enabled(self) -> bool:
+        """
+        Check if WEB client fallback is enabled.
+
+        Returns:
+            True if WEB client fallback is enabled, False otherwise
+        """
+        return self.get('music.youtube.fallback.use_web_client', True)
+
+    def is_manual_potoken_prompt_enabled(self) -> bool:
+        """
+        Check if manual PoToken prompting is enabled.
+
+        Returns:
+            True if manual prompting is enabled, False otherwise
+        """
+        return self.get('music.youtube.fallback.prompt_for_manual_potoken', False)

@@ -111,6 +111,34 @@ music:
     before: "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"  # FFmpeg options before input
     options: "-vn"  # FFmpeg options (no video)
 
+  # YouTube PoToken Configuration (Bot Detection Bypass)
+  youtube:
+    # Automatic bot detection handling
+    auto_fallback_on_bot_detection: true  # Automatically try fallback methods when bot detection occurs
+
+    # PoToken settings
+    potoken:
+      enabled: false  # Set to true to enable PoToken usage
+      auto_generate: true  # Automatically generate PoToken using nodejs (requires nodejs installed)
+      client: "WEB"  # Client type for PoToken: "WEB", "WEB_EMBED", "ANDROID", "MWEB"
+
+      # Manual PoToken configuration (used when auto_generate is false)
+      manual:
+        visitor_data: ""  # Manual visitorData (leave empty to prompt)
+        po_token: ""  # Manual PoToken (leave empty to prompt)
+
+      # PoToken caching
+      cache_enabled: true  # Cache PoToken and visitorData for reuse
+
+    # Fallback configuration
+    fallback:
+      # Fallback chain when bot detection occurs:
+      # 1. Switch to WEB client with auto PoToken generation (if nodejs available)
+      # 2. Use manual PoToken (if configured)
+      # 3. Prompt for manual PoToken input
+      use_web_client: true  # Try WEB client as first fallback
+      prompt_for_manual_potoken: false  # Prompt for manual PoToken as last resort (not recommended for bots)
+
 # Logging Configuration
 logging:
   level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL

@@ -15,6 +15,7 @@ from .queue_manager import QueueManager, Song
 from .voice_manager import VoiceManager
 from .seek_manager import SeekManager, SeekResult
 from similubot.progress.base import ProgressCallback
+from similubot.utils.config_manager import ConfigManager
 
 
 class MusicPlayer:
@@ -23,20 +24,22 @@ class MusicPlayer:
     and Discord voice playback.
     """
 
-    def __init__(self, bot: commands.Bot, temp_dir: str = "./temp"):
+    def __init__(self, bot: commands.Bot, temp_dir: str = "./temp", config: Optional[ConfigManager] = None):
         """
         Initialize the music player.
 
         Args:
             bot: Discord bot instance
             temp_dir: Directory for temporary audio files
+            config: Configuration manager for PoToken and other settings
         """
         self.logger = logging.getLogger("similubot.music.music_player")
         self.bot = bot
         self.temp_dir = temp_dir
+        self.config = config
 
-        # Initialize components
-        self.youtube_client = YouTubeClient(temp_dir)
+        # Initialize components with config support
+        self.youtube_client = YouTubeClient(temp_dir, config)
         self.catbox_client = CatboxClient(temp_dir)
         self.voice_manager = VoiceManager(bot)
         self.seek_manager = SeekManager()
