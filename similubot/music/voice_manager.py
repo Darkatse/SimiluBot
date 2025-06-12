@@ -171,15 +171,31 @@ class VoiceManager:
     def is_paused(self, guild_id: int) -> bool:
         """
         Check if bot is currently paused in a guild.
-        
+
         Args:
             guild_id: Discord guild ID
-            
+
         Returns:
             True if paused, False otherwise
         """
         voice_client = self.get_voice_client(guild_id)
         return voice_client is not None and voice_client.is_paused()
+
+    def is_idle(self, guild_id: int) -> bool:
+        """
+        Check if bot is connected but not playing or paused (idle).
+
+        Args:
+            guild_id: Discord guild ID
+
+        Returns:
+            True if connected but idle, False otherwise
+        """
+        voice_client = self.get_voice_client(guild_id)
+        if not voice_client or not voice_client.is_connected():
+            return False
+
+        return not voice_client.is_playing() and not voice_client.is_paused()
 
     async def play_audio(
         self, 
@@ -317,12 +333,14 @@ class VoiceManager:
                 "connected": False,
                 "channel": None,
                 "playing": False,
-                "paused": False
+                "paused": False,
+                "idle": False
             }
         
         return {
             "connected": voice_client.is_connected(),
             "channel": voice_client.channel.name if voice_client.channel else None,
             "playing": voice_client.is_playing(),
-            "paused": voice_client.is_paused()
+            "paused": voice_client.is_paused(),
+            "idle": self.is_idle(guild_id)
         }

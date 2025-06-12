@@ -366,6 +366,126 @@ class TestMusicCommands(unittest.TestCase):
         )
 
 
+class TestMusicPlayerAutoDisconnect(unittest.TestCase):
+    """Test music player auto-disconnect functionality."""
+
+    def setUp(self):
+        """Set up test environment."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.mock_bot = MagicMock()
+
+        # Create mock config with auto-disconnect timeout
+        self.mock_config = MagicMock(spec=ConfigManager)
+        self.mock_config.get_music_auto_disconnect_timeout.return_value = 2  # 2 seconds for testing
+
+        self.music_player = MusicPlayer(
+            bot=self.mock_bot,
+            temp_dir=self.temp_dir,
+            config=self.mock_config
+        )
+
+        self.guild_id = 12345
+
+    def tearDown(self):
+        """Clean up test environment."""
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_get_auto_disconnect_timeout_with_config(self):
+        """Test getting auto-disconnect timeout from config."""
+        timeout = self.music_player._get_auto_disconnect_timeout()
+        self.assertEqual(timeout, 2)
+
+    def test_get_auto_disconnect_timeout_without_config(self):
+        """Test getting auto-disconnect timeout without config (default)."""
+        music_player_no_config = MusicPlayer(bot=self.mock_bot, temp_dir=self.temp_dir)
+        timeout = music_player_no_config._get_auto_disconnect_timeout()
+        self.assertEqual(timeout, 300)  # Default 5 minutes
+
+    async def test_reset_inactivity_timer(self):
+        """Test resetting inactivity timer."""
+        # Start a timer first
+        self.music_player._start_inactivity_timer(self.guild_id)
+        self.assertIn(self.guild_id, self.music_player._inactivity_timers)
+
+        # Reset it
+        self.music_player._reset_inactivity_timer(self.guild_id)
+
+        # Timer should be cancelled and removed
+        self.assertNotIn(self.guild_id, self.music_player._inactivity_timers)
+        self.assertIn(self.guild_id, self.music_player._last_activity_times)
+
+    async def test_start_inactivity_timer(self):
+        """Test starting inactivity timer."""
+        self.music_player._start_inactivity_timer(self.guild_id)
+
+        # Timer should be created
+        self.assertIn(self.guild_id, self.music_player._inactivity_timers)
+        self.assertTrue(self.music_player._inactivity_timers[self.guild_id])
+
+    async def test_stop_inactivity_timer(self):
+        """Test stopping inactivity timer."""
+        # Start a timer first
+        self.music_player._start_inactivity_timer(self.guild_id)
+        self.assertIn(self.guild_id, self.music_player._inactivity_timers)
+
+        # Stop it
+        self.music_player._stop_inactivity_timer(self.guild_id)
+
+        # Timer should be removed
+        self.assertNotIn(self.guild_id, self.music_player._inactivity_timers)
+
+    async def test_cleanup_guild_state(self):
+        """Test cleaning up all guild state."""
+        # Set up some state
+        self.music_player._last_activity_times[self.guild_id] = 123456789
+        self.music_player._start_inactivity_timer(self.guild_id)
+
+        # Clean up
+        await self.music_player._cleanup_guild_state(self.guild_id)
+
+        # All state should be cleaned
+        self.assertNotIn(self.guild_id, self.music_player._last_activity_times)
+        self.assertNotIn(self.guild_id, self.music_player._inactivity_timers)
+
+    async def test_inactivity_timer_task_disconnects(self):
+        """Test that inactivity timer task disconnects after timeout."""
+        # Mock voice manager methods
+        self.music_player.voice_manager.is_connected = MagicMock(return_value=True)
+        self.music_player.voice_manager.is_playing = MagicMock(return_value=False)
+        self.music_player.voice_manager.disconnect_from_guild = AsyncMock(return_value=True)
+
+        # Start inactivity timer with very short timeout
+        timeout_seconds = 0.1  # 100ms for testing
+
+        # Run the timer task
+        await self.music_player._inactivity_timer_task(self.guild_id, timeout_seconds)
+
+        # Should have attempted to disconnect
+        self.music_player.voice_manager.disconnect_from_guild.assert_called_once_with(self.guild_id)
+
+    async def test_inactivity_timer_task_cancelled(self):
+        """Test that inactivity timer task handles cancellation."""
+        # Mock voice manager methods
+        self.music_player.voice_manager.is_connected = MagicMock(return_value=True)
+        self.music_player.voice_manager.is_playing = MagicMock(return_value=False)
+        self.music_player.voice_manager.disconnect_from_guild = AsyncMock(return_value=True)
+
+        # Create and immediately cancel the task
+        task = asyncio.create_task(
+            self.music_player._inactivity_timer_task(self.guild_id, 10)
+        )
+        task.cancel()
+
+        # Should handle cancellation gracefully
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass  # Expected
+
+        # Should not have attempted to disconnect
+        self.music_player.voice_manager.disconnect_from_guild.assert_not_called()
+
+
 if __name__ == '__main__':
     # Run async tests
     async def run_async_tests():
@@ -374,7 +494,8 @@ if __name__ == '__main__':
             TestYouTubeClient,
             TestQueueManager,
             TestVoiceManager,
-            TestMusicCommands
+            TestMusicCommands,
+            TestMusicPlayerAutoDisconnect
         ]
         
         for test_class in test_classes:

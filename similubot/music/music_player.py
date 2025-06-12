@@ -56,6 +56,10 @@ class MusicPlayer:
         self._playback_paused_times: Dict[int, float] = {}
         self._total_paused_duration: Dict[int, float] = {}
 
+        # Auto-disconnect inactivity tracking
+        self._inactivity_timers: Dict[int, asyncio.Task] = {}
+        self._last_activity_times: Dict[int, float] = {}
+
         self.logger.info("Music player initialized")
 
     def get_queue_manager(self, guild_id: int) -> QueueManager:
@@ -152,6 +156,9 @@ class MusicPlayer:
 
             self.logger.info(f"Added {source_type.value} song to queue: {unified_audio_info.title} (position {position})")
 
+            # Reset inactivity timer (activity detected)
+            self._reset_inactivity_timer(guild_id)
+
             # Start playback if not already playing
             if not self.voice_manager.is_playing(guild_id):
                 await self._start_playback(guild_id, progress_callback)
@@ -183,6 +190,10 @@ class MusicPlayer:
         voice_client = await self.voice_manager.connect_to_voice_channel(member.voice.channel)
         if not voice_client:
             return False, "Failed to connect to voice channel"
+
+        # Reset inactivity timer when connecting (activity detected)
+        guild_id = member.guild.id
+        self._reset_inactivity_timer(guild_id)
 
         return True, None
 
@@ -235,13 +246,8 @@ class MusicPlayer:
             queue_manager = self.get_queue_manager(guild_id)
             cleared_count = await queue_manager.clear_queue()
 
-            # Clean up audio file
-            await self._cleanup_current_audio(guild_id)
-
-            # Cancel playback task
-            if guild_id in self._playback_tasks:
-                self._playback_tasks[guild_id].cancel()
-                del self._playback_tasks[guild_id]
+            # Clean up all guild state (includes timers, audio files, etc.)
+            await self._cleanup_guild_state(guild_id)
 
             # Disconnect from voice
             await self.voice_manager.disconnect_from_guild(guild_id)
@@ -527,6 +533,127 @@ class MusicPlayer:
 
         self.logger.debug(f"Updated timing after seek: new start time accounts for {target_seconds}s offset")
 
+    def _get_auto_disconnect_timeout(self) -> int:
+        """
+        Get the auto-disconnect timeout from configuration.
+
+        Returns:
+            Timeout in seconds (default: 300 = 5 minutes)
+        """
+        if self.config:
+            return self.config.get_music_auto_disconnect_timeout()
+        return 300  # Default 5 minutes
+
+    def _reset_inactivity_timer(self, guild_id: int) -> None:
+        """
+        Reset the inactivity timer for a guild (activity detected).
+
+        Args:
+            guild_id: Discord guild ID
+        """
+        # Cancel existing timer if any
+        if guild_id in self._inactivity_timers:
+            self._inactivity_timers[guild_id].cancel()
+            del self._inactivity_timers[guild_id]
+
+        # Update last activity time
+        self._last_activity_times[guild_id] = time.time()
+
+        self.logger.debug(f"Reset inactivity timer for guild {guild_id}")
+
+    def _start_inactivity_timer(self, guild_id: int) -> None:
+        """
+        Start the inactivity timer for a guild (no active playback).
+
+        Args:
+            guild_id: Discord guild ID
+        """
+        # Cancel existing timer if any
+        if guild_id in self._inactivity_timers:
+            self._inactivity_timers[guild_id].cancel()
+
+        # Get timeout from config
+        timeout_seconds = self._get_auto_disconnect_timeout()
+
+        # Create new inactivity timer task
+        timer_task = asyncio.create_task(
+            self._inactivity_timer_task(guild_id, timeout_seconds)
+        )
+        self._inactivity_timers[guild_id] = timer_task
+
+        self.logger.debug(f"Started inactivity timer for guild {guild_id} ({timeout_seconds}s)")
+
+    async def _inactivity_timer_task(self, guild_id: int, timeout_seconds: int) -> None:
+        """
+        Inactivity timer task that disconnects after timeout.
+
+        Args:
+            guild_id: Discord guild ID
+            timeout_seconds: Timeout duration in seconds
+        """
+        try:
+            await asyncio.sleep(timeout_seconds)
+
+            # Check if still connected and inactive
+            if (self.voice_manager.is_connected(guild_id) and
+                not self.voice_manager.is_playing(guild_id)):
+
+                self.logger.info(f"Auto-disconnecting from guild {guild_id} after {timeout_seconds}s of inactivity")
+
+                # Clean up any remaining state
+                await self._cleanup_guild_state(guild_id)
+
+                # Disconnect from voice channel
+                await self.voice_manager.disconnect_from_guild(guild_id)
+
+        except asyncio.CancelledError:
+            self.logger.debug(f"Inactivity timer cancelled for guild {guild_id}")
+        except Exception as e:
+            self.logger.error(f"Error in inactivity timer for guild {guild_id}: {e}", exc_info=True)
+        finally:
+            # Clean up timer reference
+            if guild_id in self._inactivity_timers:
+                del self._inactivity_timers[guild_id]
+
+    def _stop_inactivity_timer(self, guild_id: int) -> None:
+        """
+        Stop the inactivity timer for a guild.
+
+        Args:
+            guild_id: Discord guild ID
+        """
+        if guild_id in self._inactivity_timers:
+            self._inactivity_timers[guild_id].cancel()
+            del self._inactivity_timers[guild_id]
+            self.logger.debug(f"Stopped inactivity timer for guild {guild_id}")
+
+    async def _cleanup_guild_state(self, guild_id: int) -> None:
+        """
+        Clean up all state for a guild (playback, timers, etc.).
+
+        Args:
+            guild_id: Discord guild ID
+        """
+        # Cancel playback task
+        if guild_id in self._playback_tasks:
+            self._playback_tasks[guild_id].cancel()
+            del self._playback_tasks[guild_id]
+
+        # Clean up audio file
+        await self._cleanup_current_audio(guild_id)
+
+        # Stop timing tracking
+        self._stop_playback_timing(guild_id)
+
+        # Stop inactivity timer
+        self._stop_inactivity_timer(guild_id)
+
+        # Clear last activity time
+        if guild_id in self._last_activity_times:
+            del self._last_activity_times[guild_id]
+
+        self.logger.debug(f"Cleaned up all state for guild {guild_id}")
+
     async def _start_playback(
         self,
         guild_id: int,
@@ -541,6 +668,9 @@ class MusicPlayer:
         """
         if guild_id in self._playback_tasks:
             return  # Already playing
+
+        # Reset inactivity timer (activity detected)
+        self._reset_inactivity_timer(guild_id)
 
         # Create playback task
         task = asyncio.create_task(self._playback_loop(guild_id, progress_callback))
@@ -566,6 +696,8 @@ class MusicPlayer:
                 song = await queue_manager.get_next_song()
                 if not song:
                     self.logger.debug(f"No more songs in queue for guild {guild_id}")
+                    # Start inactivity timer when queue is empty
+                    self._start_inactivity_timer(guild_id)
                     break
 
                 # Handle audio based on source type
@@ -681,9 +813,14 @@ class MusicPlayer:
         for task in self._playback_tasks.values():
             task.cancel()
 
+        # Cancel all inactivity timers
+        for timer_task in self._inactivity_timers.values():
+            timer_task.cancel()
+
         # Wait for tasks to complete
-        if self._playback_tasks:
-            await asyncio.gather(*self._playback_tasks.values(), return_exceptions=True)
+        all_tasks = list(self._playback_tasks.values()) + list(self._inactivity_timers.values())
+        if all_tasks:
+            await asyncio.gather(*all_tasks, return_exceptions=True)
 
         # Clean up audio files
         for guild_id in list(self._current_audio_files.keys()):
@@ -704,3 +841,7 @@ class MusicPlayer:
         self._playback_start_times.clear()
         self._playback_paused_times.clear()
         self._total_paused_duration.clear()
+
+        # Clear inactivity tracking state
+        self._inactivity_timers.clear()
+        self._last_activity_times.clear()
