@@ -612,6 +612,12 @@ class NaiCog(commands.GroupCog, group_name="nai", group_description="NovelAI 图
                 )
         elif isinstance(original, NovelAIError):
             text = str(original)
+            self.logger.warning(
+                "NovelAI error: status=%s request=%s detail=%s",
+                original.status,
+                original.correlation_id,
+                original.detail,
+            )
             if original.correlation_id:
                 text += f"（请求编号 {original.correlation_id}）"
         elif isinstance(original, (NaiUserError, ValueError)):

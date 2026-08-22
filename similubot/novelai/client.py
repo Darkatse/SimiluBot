@@ -42,10 +42,12 @@ class NovelAIError(RuntimeError):
         *,
         status: int | None = None,
         correlation_id: str | None = None,
+        detail: str | None = None,
     ):
         super().__init__(message)
         self.status = status
         self.correlation_id = correlation_id
+        self.detail = detail
 
 
 class NovelAIClient:
@@ -146,10 +148,20 @@ class NovelAIClient:
 
     @staticmethod
     def _api_error(
-        _body: bytes, status: int, correlation_id: str | None = None
+        body: bytes, status: int, correlation_id: str | None = None
     ) -> NovelAIError:
+        try:
+            data = json.loads(body)
+            detail = str(data.get("message") or data.get("error") or data)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            detail = body.decode("utf-8", "replace")
+        message = {
+            401: "NovelAI 密钥无效或已过期",
+            429: "NovelAI 请求过于频繁，请稍后重试",
+        }.get(status, f"NovelAI 请求失败（状态码 {status}）")
         return NovelAIError(
-            f"NovelAI 请求失败（状态码 {status}）",
+            message,
             status=status,
             correlation_id=correlation_id,
+            detail=detail[:500],
         )

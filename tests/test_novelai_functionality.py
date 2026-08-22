@@ -10,7 +10,7 @@ from discord.ext import commands
 
 from similubot.auth.authorization_manager import AuthorizationManager
 from similubot.commands.nai import NaiCog
-from similubot.novelai.client import Subscription
+from similubot.novelai.client import NovelAIClient, Subscription
 from similubot.novelai.domain import (
     UnknownMacros,
     UserSettings,
@@ -78,6 +78,13 @@ def test_v5_payload_contract():
     )
     assert one_shot.uc_preset == "light"
     assert one_shot.uc_text != "custom"
+
+
+def test_novelai_error_is_localized_without_losing_diagnostics():
+    error = NovelAIClient._api_error(b'{"message":"rate limit"}', 429, "abc123")
+    assert str(error) == "NovelAI 请求过于频繁，请稍后重试"
+    assert error.detail == "rate limit"
+    assert error.correlation_id == "abc123"
 
 
 def test_artist_macros_are_literal_and_single_pass():
