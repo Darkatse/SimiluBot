@@ -1,6 +1,8 @@
 """Tests that guard NovelAI protocol, persistence, and spending boundaries."""
 
 import asyncio
+import io
+import zipfile
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -85,6 +87,51 @@ def test_novelai_error_is_localized_without_losing_diagnostics():
     assert str(error) == "NovelAI 请求过于频繁，请稍后重试"
     assert error.detail == "rate limit"
     assert error.correlation_id == "abc123"
+
+
+def test_concurrent_generation_lock_is_retried(monkeypatch):
+    class Response:
+        def __init__(self, status, body):
+            self.status = status
+            self.body = body
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            pass
+
+        async def read(self):
+            return self.body
+
+    class Session:
+        closed = False
+
+        def __init__(self, responses):
+            self.responses = iter(responses)
+
+        def post(self, *_args, **_kwargs):
+            return next(self.responses)
+
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr("image.png", b"png")
+
+    async def scenario():
+        sleep = AsyncMock()
+        monkeypatch.setattr("similubot.novelai.client.asyncio.sleep", sleep)
+        client = NovelAIClient("key")
+        client._session = Session(
+            [
+                Response(429, b'{"message":"Concurrent generation is locked"}'),
+                Response(200, archive.getvalue()),
+            ]
+        )
+
+        assert await client.generate({}) == (b"png",)
+        sleep.assert_awaited_once_with(7)
+
+    asyncio.run(scenario())
 
 
 def test_artist_macros_are_literal_and_single_pass():

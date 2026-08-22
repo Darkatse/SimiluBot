@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import secrets
@@ -88,17 +89,28 @@ class NovelAIClient:
         )
         session = await self._get_session()
         try:
-            async with session.post(
-                f"{self.base_url}/ai/generate-image",
-                json=payload,
-                headers={
-                    "X-Correlation-ID": correlation_id,
-                    "Accept": "application/zip",
-                },
-            ) as response:
-                body = await response.read()
-                if response.status >= 400:
-                    raise self._api_error(body, response.status, correlation_id)
+            for attempt in range(3):
+                async with session.post(
+                    f"{self.base_url}/ai/generate-image",
+                    json=payload,
+                    headers={
+                        "X-Correlation-ID": correlation_id,
+                        "Accept": "application/zip",
+                    },
+                ) as response:
+                    body = await response.read()
+                if response.status < 400:
+                    break
+                error = self._api_error(body, response.status, correlation_id)
+                concurrent_lock = (
+                    error.status == 429
+                    and "concurrent generation is locked"
+                    in (error.detail or "").lower()
+                )
+                if concurrent_lock and attempt < 2:
+                    await asyncio.sleep(7)
+                    continue
+                raise error
         except aiohttp.ClientError as error:
             raise NovelAIError(
                 "无法连接 NovelAI", correlation_id=correlation_id
