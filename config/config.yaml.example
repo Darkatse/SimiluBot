@@ -4,6 +4,7 @@
 discord:
   token: "YOUR_DISCORD_BOT_TOKEN_HERE"
   command_prefix: "!"
+  message_content_intent: true  # Required by legacy prefix commands and automatic link detection
   # command_guild_id: "123456789012345678"  # Optional: instant slash-command sync while developing
 
 # Authorization Configuration

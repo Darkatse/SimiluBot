@@ -55,6 +55,7 @@ The `config/config.yaml` file contains all the configuration options for the bot
 
 - `DISCORD_TOKEN`: Preferred Discord bot token source; `discord.token` remains a YAML fallback
 - `discord.command_prefix`: Command prefix for the bot (default: `!`)
+- `discord.message_content_intent`: Enable only when legacy prefix commands are needed
 - `discord.command_guild_id`: Optional guild for immediate slash-command sync during development
 - `authorization.admin_ids`: Users allowed to manage NovelAI access and paid generation
 - `novelai.state_path`: SQLite storage for preferences, macros, and access policy

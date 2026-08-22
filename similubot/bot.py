@@ -36,7 +36,7 @@ class SimiluBot(commands.Bot):
         self.logger = logging.getLogger("similubot.bot")
         self.config = config
         intents = discord.Intents.default()
-        intents.message_content = True
+        intents.message_content = config.get("discord.message_content_intent", True)
         super().__init__(
             command_prefix=config.get("discord.command_prefix", "!"),
             intents=intents,

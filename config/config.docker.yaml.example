@@ -1,5 +1,6 @@
 discord:
   command_prefix: "!"
+  message_content_intent: false
   command_guild_id: "YOUR_DISCORD_GUILD_ID"
 
 authorization:
