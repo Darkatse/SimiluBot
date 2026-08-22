@@ -185,7 +185,7 @@ class NaiCog(commands.GroupCog, group_name="nai", group_description="NovelAI 图
             )
             return
 
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.response.defer(ephemeral=hidden, thinking=True)
         result = await self.service.generate(
             str(interaction.user.id),
             str(prompt),
@@ -219,17 +219,11 @@ class NaiCog(commands.GroupCog, group_name="nai", group_description="NovelAI 图
         embed.set_footer(text=f"由 {interaction.user.display_name} 生成")
         filename = f"novelai-{settings.seed}.png"
         embed.set_image(url=f"attachment://{filename}")
-        message = await interaction.followup.send(
+        await interaction.edit_original_response(
             embed=embed,
-            file=discord.File(io.BytesIO(image), filename=filename),
+            attachments=[discord.File(io.BytesIO(image), filename=filename)],
             allowed_mentions=discord.AllowedMentions.none(),
-            ephemeral=hidden,
-            wait=True,
         )
-        completion = (
-            "生成完成；图片仅对你可见。" if hidden else f"生成完成：{message.jump_url}"
-        )
-        await interaction.edit_original_response(content=completion)
 
     @defaults.command(name="show", description="查看当前生效的个人默认设置")
     async def defaults_show(self, interaction: discord.Interaction) -> None:

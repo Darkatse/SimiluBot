@@ -192,7 +192,7 @@ def test_paid_request_is_stopped_before_generation(tmp_path):
     asyncio.run(scenario())
 
 
-def test_draw_publishes_through_interaction_webhook():
+def test_draw_visibility_follows_hidden_option():
     async def scenario():
         settings = resolve_settings(
             UserSettings("42"), "nai-diffusion-5-curated", {"seed": 7}
@@ -206,44 +206,39 @@ def test_draw_publishes_through_interaction_webhook():
             can_generate=AsyncMock(return_value=True),
             generate=AsyncMock(return_value=result),
         )
-        followup = SimpleNamespace(
-            send=AsyncMock(
-                return_value=SimpleNamespace(jump_url="https://discord.test/message")
-            )
-        )
         interaction = SimpleNamespace(
             user=SimpleNamespace(id=42, display_name="Tester"),
             guild_id=9,
             channel_id=7,
             channel=SimpleNamespace(parent_id=None),
             response=SimpleNamespace(defer=AsyncMock()),
-            followup=followup,
             edit_original_response=AsyncMock(),
         )
         cog = NaiCog(service, AuthorizationManager(auth_enabled=False))
 
         await cog.draw.callback(cog, interaction, "1girl")
 
-        followup.send.assert_awaited_once()
-        assert followup.send.await_args.kwargs["wait"] is True
-        assert followup.send.await_args.kwargs["ephemeral"] is False
-        interaction.edit_original_response.assert_awaited_once_with(
-            content="生成完成：https://discord.test/message"
+        interaction.response.defer.assert_awaited_once_with(
+            ephemeral=False, thinking=True
+        )
+        assert interaction.edit_original_response.await_args.kwargs["embed"].title == (
+            "🎨 NovelAI 生图"
+        )
+        assert (
+            len(interaction.edit_original_response.await_args.kwargs["attachments"])
+            == 1
         )
 
         hidden = SimpleNamespace(
             **{
                 **interaction.__dict__,
                 "response": SimpleNamespace(defer=AsyncMock()),
-                "followup": SimpleNamespace(send=AsyncMock(return_value=object())),
                 "edit_original_response": AsyncMock(),
             }
         )
         await cog.draw.callback(cog, hidden, "1girl", hidden=True)
-        assert hidden.followup.send.await_args.kwargs["ephemeral"] is True
-        hidden.edit_original_response.assert_awaited_once_with(
-            content="生成完成；图片仅对你可见。"
-        )
+        hidden.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+        assert len(hidden.edit_original_response.await_args.kwargs["attachments"]) == 1
 
     asyncio.run(scenario())
 
