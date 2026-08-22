@@ -92,7 +92,8 @@ class NaiCog(commands.GroupCog, group_name="nai", group_description="NovelAI 图
             value=(
                 "`/nai draw prompt:1girl, blue hair` — 生成一张图片\n"
                 "`/nai quota` — 查看共享账户额度\n"
-                "`/nai defaults show` — 查看当前默认设置"
+                "`/nai defaults show` — 查看当前默认设置\n"
+                "生图默认公开；添加 `hidden:true` 可设为仅自己可见。"
             ),
             inline=False,
         )
@@ -149,6 +150,7 @@ class NaiCog(commands.GroupCog, group_name="nai", group_description="NovelAI 图
         sampler="采样器",
         seed="随机种子（0-4294967295；留空则随机）",
         allow_paid="仅管理员：允许本次请求消耗 Anlas",
+        hidden="是否仅自己可见（默认公开）",
     )
     @app_commands.choices(
         model=MODEL_CHOICES,
@@ -169,6 +171,7 @@ class NaiCog(commands.GroupCog, group_name="nai", group_description="NovelAI 图
         sampler: str | None = None,
         seed: app_commands.Range[int, 0, 4294967295] | None = None,
         allow_paid: bool = False,
+        hidden: bool = False,
     ) -> None:
         admin = self._is_admin(interaction)
         if allow_paid and not admin:
@@ -220,11 +223,13 @@ class NaiCog(commands.GroupCog, group_name="nai", group_description="NovelAI 图
             embed=embed,
             file=discord.File(io.BytesIO(image), filename=filename),
             allowed_mentions=discord.AllowedMentions.none(),
+            ephemeral=hidden,
             wait=True,
         )
-        await interaction.edit_original_response(
-            content=f"生成完成：{message.jump_url}"
+        completion = (
+            "生成完成；图片仅对你可见。" if hidden else f"生成完成：{message.jump_url}"
         )
+        await interaction.edit_original_response(content=completion)
 
     @defaults.command(name="show", description="查看当前生效的个人默认设置")
     async def defaults_show(self, interaction: discord.Interaction) -> None:

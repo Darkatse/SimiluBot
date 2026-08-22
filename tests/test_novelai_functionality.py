@@ -179,8 +179,23 @@ def test_draw_publishes_through_interaction_webhook():
 
         followup.send.assert_awaited_once()
         assert followup.send.await_args.kwargs["wait"] is True
+        assert followup.send.await_args.kwargs["ephemeral"] is False
         interaction.edit_original_response.assert_awaited_once_with(
             content="生成完成：https://discord.test/message"
+        )
+
+        hidden = SimpleNamespace(
+            **{
+                **interaction.__dict__,
+                "response": SimpleNamespace(defer=AsyncMock()),
+                "followup": SimpleNamespace(send=AsyncMock(return_value=object())),
+                "edit_original_response": AsyncMock(),
+            }
+        )
+        await cog.draw.callback(cog, hidden, "1girl", hidden=True)
+        assert hidden.followup.send.await_args.kwargs["ephemeral"] is True
+        hidden.edit_original_response.assert_awaited_once_with(
+            content="生成完成；图片仅对你可见。"
         )
 
     asyncio.run(scenario())
