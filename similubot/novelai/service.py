@@ -120,9 +120,7 @@ class NaiService:
         }
         prepared = prepare_generation(prompt, settings, macros)
         if self._generation_lock.locked():
-            raise NaiUserError(
-                "NovelAI is already generating an image; try again shortly"
-            )
+            raise NaiUserError("NovelAI 正在生成另一张图片，请稍后再试")
 
         async with self._generation_lock:
             subscription = await self.client.subscription()
@@ -133,9 +131,7 @@ class NaiService:
                 subscription.usage_available,
             )
             if paid_reasons and not allow_paid:
-                raise NaiUserError(
-                    "This request may spend Anlas: " + "; ".join(paid_reasons)
-                )
+                raise NaiUserError("本次请求可能消耗 Anlas：" + "；".join(paid_reasons))
             images = await self.client.generate(prepared.payload)
         return GenerationResult(prepared, images, subscription)
 

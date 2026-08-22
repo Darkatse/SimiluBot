@@ -64,7 +64,7 @@ class NaiStore:
     async def save_macro(self, user_id: str, name: str, value: str) -> ArtistMacro:
         macro = ArtistMacro(normalize_macro_name(name), value.strip())
         if not macro.value:
-            raise ValueError("Artist string cannot be empty")
+            raise ValueError("画师串内容不能为空")
 
         def write() -> None:
             with self._connect() as connection:
@@ -120,9 +120,9 @@ class NaiStore:
 
     async def save_policy(self, policy: GuildPolicy) -> None:
         if policy.user_mode not in {"allowlist", "everyone"}:
-            raise ValueError("User mode must be allowlist or everyone")
+            raise ValueError("成员模式必须是白名单或所有成员")
         if policy.channel_mode not in {"allowlist", "all"}:
-            raise ValueError("Channel mode must be allowlist or all")
+            raise ValueError("频道模式必须是白名单或所有频道")
 
         def write() -> None:
             with self._connect() as connection:
@@ -145,7 +145,7 @@ class NaiStore:
         self, guild_id: str, kind: str, subject_id: str, allowed: bool
     ) -> None:
         if kind not in {"user", "channel"}:
-            raise ValueError("Rule kind must be user or channel")
+            raise ValueError("白名单类型必须是成员或频道")
 
         def write() -> None:
             with self._connect() as connection:

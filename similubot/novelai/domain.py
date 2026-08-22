@@ -133,7 +133,7 @@ class UnknownMacros(ValueError):
         self.names = names
         self.suggestions = dict(suggestions)
         message = ", ".join(f"${name}$" for name in names)
-        super().__init__(f"Unknown artist macro(s): {message}")
+        super().__init__(f"未找到画师串：{message}")
 
 
 _MACRO_PATTERN = re.compile(r"\$(?P<name>[^$\s]{1,32})\$")
@@ -150,9 +150,7 @@ def normalize_macro_name(name: str) -> str:
         or len(normalized) > 32
         or any(char.isspace() or char == "$" for char in normalized)
     ):
-        raise ValueError(
-            "Macro names must be 1-32 non-whitespace characters without '$'"
-        )
+        raise ValueError("画师串名称需为 1-32 个字符，且不能包含空白或 '$'")
     return normalized
 
 
@@ -189,9 +187,9 @@ def extract_character_prompts(prompt: str) -> tuple[str, tuple[CharacterPrompt, 
     ]
     numbers = [number for number, _ in numbered]
     if any(number < 1 or number > 8 for number in numbers):
-        raise ValueError("Character numbers must be between 1 and 8")
+        raise ValueError("角色编号必须在 1 到 8 之间")
     if len(set(numbers)) != len(numbers):
-        raise ValueError("Character numbers must be unique")
+        raise ValueError("角色编号不能重复")
 
     numbered.sort()
     count = len(numbered)
@@ -201,7 +199,7 @@ def extract_character_prompts(prompt: str) -> tuple[str, tuple[CharacterPrompt, 
     )
     base_prompt = re.sub(r"\s+", " ", _CHARACTER_PATTERN.sub(" ", prompt)).strip(" ,")
     if not base_prompt:
-        raise ValueError("A base prompt is required in addition to character prompts")
+        raise ValueError("除角色提示词外，还需要填写基础提示词")
     return base_prompt, characters
 
 
@@ -286,7 +284,7 @@ def reset_settings(settings: UserSettings, field_name: str) -> UserSettings:
     if field_name == "all":
         return UserSettings(settings.user_id)
     if field_name not in setting_fields:
-        raise ValueError(f"Unknown settings field: {field_name}")
+        raise ValueError(f"未知设置项：{field_name}")
     return replace(settings, **{field_name: None})
 
 
@@ -296,7 +294,7 @@ def prepare_generation(
     macros: Mapping[str, str],
 ) -> PreparedGeneration:
     if not original_prompt.strip():
-        raise ValueError("Prompt cannot be empty")
+        raise ValueError("提示词不能为空")
     expanded = expand_macros(original_prompt.strip(), macros)
     prompt, characters = extract_character_prompts(expanded)
     processed_prompt = f"{prompt}, {QUALITY_TAGS}"
@@ -389,13 +387,13 @@ def free_generation_reasons(
     width, height = settings.size
     reasons: list[str] = []
     if not active or tier != 3:
-        reasons.append("the NovelAI account is not on an active Opus subscription")
+        reasons.append("NovelAI 账户没有有效的 Opus 订阅")
     if width * height > 1_048_576:
-        reasons.append("the resolution exceeds 1024x1024 pixels")
+        reasons.append("分辨率超过 1024×1024")
     if settings.steps > 28:
-        reasons.append("steps exceed the Opus free limit of 28")
+        reasons.append("采样步数超过 Opus 免费上限 28")
     if not usage_available:
-        reasons.append("the Opus generation pool is unavailable")
+        reasons.append("Opus 免费生成池当前不可用")
     return tuple(reasons)
 
 
@@ -403,20 +401,20 @@ def get_profile(model: str) -> ModelProfile:
     try:
         return MODEL_PROFILES[model]
     except KeyError as error:
-        raise ValueError(f"Unsupported NovelAI model: {model}") from error
+        raise ValueError(f"不支持的 NovelAI 模型：{model}") from error
 
 
 def validate_effective_settings(values: Mapping[str, Any]) -> None:
     get_profile(values["model"])
     if values["orientation"] not in ORIENTATIONS:
-        raise ValueError(f"Unsupported orientation: {values['orientation']}")
+        raise ValueError(f"不支持的画布方向：{values['orientation']}")
     if not 0 <= values["guidance"] <= 10:
-        raise ValueError("Guidance must be between 0 and 10")
+        raise ValueError("引导强度必须在 0 到 10 之间")
     if not 1 <= values["steps"] <= 50:
-        raise ValueError("Steps must be between 1 and 50")
+        raise ValueError("采样步数必须在 1 到 50 之间")
     if values["uc_preset"] not in UC_PRESETS:
-        raise ValueError(f"Unsupported UC preset: {values['uc_preset']}")
+        raise ValueError(f"不支持的负面提示词预设：{values['uc_preset']}")
     if values["sampler"] not in SAMPLERS:
-        raise ValueError(f"Unsupported sampler: {values['sampler']}")
+        raise ValueError(f"不支持的采样器：{values['sampler']}")
     if not 0 <= values["seed"] < 2**32:
-        raise ValueError("Seed must be between 0 and 4294967295")
+        raise ValueError("随机种子必须在 0 到 4294967295 之间")

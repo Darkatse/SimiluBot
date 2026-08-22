@@ -1,6 +1,8 @@
 """Tests that guard NovelAI protocol, persistence, and spending boundaries."""
 
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import discord
 import pytest
@@ -16,7 +18,7 @@ from similubot.novelai.domain import (
     prepare_generation,
     resolve_settings,
 )
-from similubot.novelai.service import NaiService, NaiUserError
+from similubot.novelai.service import GenerationResult, NaiService, NaiUserError
 from similubot.novelai.store import GuildPolicy, NaiStore
 
 
@@ -34,6 +36,7 @@ def test_slash_command_shape():
             "artist": {"save", "delete", "list"},
             "admin": {"status", "policy", "allow", "revoke"},
             "draw": set(),
+            "help": set(),
             "quota": set(),
         }
         await bot.close()
@@ -128,9 +131,95 @@ def test_paid_request_is_stopped_before_generation(tmp_path):
             client, NaiStore(str(tmp_path / "nai.sqlite3")), "nai-diffusion-5-curated"
         )
         await service.initialize()
-        with pytest.raises(NaiUserError, match="may spend Anlas"):
+        with pytest.raises(NaiUserError, match="可能消耗 Anlas"):
             await service.generate("42", "1girl", {"seed": 1})
         assert client.generate_calls == 0
+
+    asyncio.run(scenario())
+
+
+def test_draw_publishes_through_interaction_webhook():
+    async def scenario():
+        settings = resolve_settings(
+            UserSettings("42"), "nai-diffusion-5-curated", {"seed": 7}
+        )
+        result = GenerationResult(
+            prepare_generation("1girl", settings, {}),
+            (b"png",),
+            Subscription(3, True, 0, 10_000, 0, 100, False, 0),
+        )
+        service = SimpleNamespace(
+            can_generate=AsyncMock(return_value=True),
+            generate=AsyncMock(return_value=result),
+        )
+        followup = SimpleNamespace(
+            send=AsyncMock(
+                return_value=SimpleNamespace(jump_url="https://discord.test/message")
+            )
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=42, display_name="Tester"),
+            guild_id=9,
+            channel_id=7,
+            channel=SimpleNamespace(parent_id=None),
+            response=SimpleNamespace(defer=AsyncMock()),
+            followup=followup,
+            edit_original_response=AsyncMock(),
+        )
+        cog = NaiCog(service, AuthorizationManager(auth_enabled=False))
+
+        await cog.draw.callback(cog, interaction, "1girl")
+
+        followup.send.assert_awaited_once()
+        assert followup.send.await_args.kwargs["wait"] is True
+        interaction.edit_original_response.assert_awaited_once_with(
+            content="生成完成：https://discord.test/message"
+        )
+
+    asyncio.run(scenario())
+
+
+def test_quota_hides_anlas_from_non_admins():
+    async def scenario():
+        service = SimpleNamespace(
+            can_generate=AsyncMock(return_value=True),
+            subscription=AsyncMock(
+                return_value=Subscription(
+                    3, True, 2_000_000_000, 8_000, 785, 72, False, 60
+                )
+            ),
+        )
+
+        def interaction():
+            return SimpleNamespace(
+                user=SimpleNamespace(id=42),
+                guild_id=9,
+                channel_id=7,
+                channel=SimpleNamespace(parent_id=None),
+                response=SimpleNamespace(defer=AsyncMock()),
+                edit_original_response=AsyncMock(),
+            )
+
+        regular = interaction()
+        regular_cog = NaiCog(service, AuthorizationManager(auth_enabled=False))
+        await regular_cog.quota.callback(regular_cog, regular)
+        regular_embed = regular.edit_original_response.await_args.kwargs["embed"]
+        assert regular_embed.title == "💎 NovelAI 共享额度"
+        assert all(field.name != "🪙 Anlas" for field in regular_embed.fields)
+
+        admin = interaction()
+        admin_cog = NaiCog(
+            service,
+            AuthorizationManager(auth_enabled=False, admin_ids=["42"]),
+        )
+        await admin_cog.quota.callback(admin_cog, admin)
+        admin_embed = admin.edit_original_response.await_args.kwargs["embed"]
+        assert (
+            next(
+                field.value for field in admin_embed.fields if field.name == "🪙 Anlas"
+            )
+            == "**8,785**"
+        )
 
     asyncio.run(scenario())
 
