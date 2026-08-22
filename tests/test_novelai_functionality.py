@@ -264,7 +264,7 @@ def test_quota_hides_anlas_from_non_admins():
             can_generate=AsyncMock(return_value=True),
             subscription=AsyncMock(
                 return_value=Subscription(
-                    3, True, 2_000_000_000, 8_000, 785, 72, False, 60
+                    3, True, 2_000_000_000, 8_000, 785, 135, False, 60
                 )
             ),
         )
@@ -284,6 +284,7 @@ def test_quota_hides_anlas_from_non_admins():
         await regular_cog.quota.callback(regular_cog, regular)
         regular_embed = regular.edit_original_response.await_args.kwargs["embed"]
         assert regular_embed.title == "💎 NovelAI 共享额度"
+        assert "**135%**" in regular_embed.description
         assert all(field.name != "🪙 Anlas" for field in regular_embed.fields)
 
         admin = interaction()

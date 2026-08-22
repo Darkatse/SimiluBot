@@ -391,8 +391,9 @@ class NaiCog(commands.GroupCog, group_name="nai", group_description="NovelAI 图
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         subscription = await self.service.subscription()
-        percent = max(0, min(100, subscription.usage_percent))
-        bar = "▰" * round(percent / 10) + "▱" * (10 - round(percent / 10))
+        percent = max(0, subscription.usage_percent)
+        filled = round(min(100, percent) / 10)
+        bar = "▰" * filled + "▱" * (10 - filled)
         available = subscription.active and subscription.usage_available
         embed = discord.Embed(
             title="💎 NovelAI 共享额度",
