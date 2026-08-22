@@ -8,10 +8,9 @@ import logging
 import os
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from similubot.utils.logger import setup_logger
-from similubot.utils.config_manager import ConfigManager
 
 
 class TestLoggingSystem(unittest.TestCase):
@@ -128,29 +127,6 @@ class TestLoggingSystem(unittest.TestCase):
         # Should only have console handler
         self.assertEqual(len(logger.handlers), 1)
         self.assertIsInstance(logger.handlers[0], logging.StreamHandler)
-
-    @patch('similubot.utils.config_manager.ConfigManager')
-    def test_config_manager_integration(self, mock_config_class):
-        """Test integration with ConfigManager."""
-        # Mock config manager
-        mock_config = MagicMock()
-        mock_config.get_log_level.return_value = "DEBUG"
-        mock_config.get_log_file.return_value = None
-        mock_config.get_log_max_size.return_value = 5242880  # 5 MB
-        mock_config.get_log_backup_count.return_value = 3
-        mock_config_class.return_value = mock_config
-        
-        # Test that config values are used
-        config = ConfigManager()
-        setup_logger(
-            log_level=config.get_log_level(),
-            log_file=config.get_log_file(),
-            max_size=config.get_log_max_size(),
-            backup_count=config.get_log_backup_count()
-        )
-        
-        logger = logging.getLogger("similubot")
-        self.assertEqual(logger.level, logging.DEBUG)
 
     def test_multiple_setup_calls_clear_handlers(self):
         """Test that multiple setup calls don't create duplicate handlers."""

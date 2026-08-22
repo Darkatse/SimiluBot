@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.venv
+__pycache__
+*.py[cod]
+
+config/config.yaml
+data
+logs
+temp
+
+docs
+tests
+*.md

@@ -17,30 +17,19 @@ from similubot.uploaders.discord_uploader import DiscordUploader
 class TestConfigurationManagement(unittest.TestCase):
     """Test configuration management functionality."""
 
-    def test_config_manager_initialization(self):
-        """Test configuration manager initialization."""
-        with patch('similubot.utils.config_manager.ConfigManager.load_config', return_value={}):
-            config = ConfigManager("test_config.json")
-            self.assertIsNotNone(config)
-
     def test_config_file_not_found(self):
         """Test handling of missing configuration file."""
         with patch('similubot.utils.config_manager.os.path.exists', return_value=False):
             with self.assertRaises(FileNotFoundError):
                 ConfigManager("nonexistent_config.json")
 
-    def test_config_value_retrieval(self):
-        """Test configuration value retrieval."""
-        config_data = {
-            "mega": {"enabled": True, "default_bitrate": 128, "upload_service": "catbox"},
-            "novelai": {"upload_service": "discord"}
-        }
-
-        with patch('similubot.utils.config_manager.ConfigManager.load_config', return_value=config_data):
-            config = ConfigManager("test_config.json")
-
-            # Test basic config loading
-            self.assertIsNotNone(config)
+    def test_discord_token_environment_takes_precedence(self):
+        with patch.object(ConfigManager, "_load_config"), patch.dict(
+            os.environ, {"DISCORD_TOKEN": "environment-token"}
+        ):
+            config = ConfigManager("unused.yaml")
+            config.config = {"discord": {"token": "yaml-token"}}
+            self.assertEqual(config.get_discord_token(), "environment-token")
 
     def test_mega_enabled_configuration(self):
         """Test MEGA enabled configuration option."""

@@ -3,11 +3,13 @@ import json
 import logging
 import os
 from typing import Dict, List, Optional, Set
-import discord
 
 from .permission_types import (
-    PermissionLevel, ModulePermission, UserPermissions,
-    get_command_module, get_feature_module
+    ModulePermission,
+    PermissionLevel,
+    UserPermissions,
+    get_command_module,
+    get_feature_module,
 )
 
 
@@ -19,19 +21,25 @@ class AuthorizationManager:
     provides methods to check permissions, and manages unauthorized access handling.
     """
 
-    def __init__(self, config_path: str = "config/authorization.json", auth_enabled: bool = True):
+    def __init__(
+        self,
+        config_path: str = "config/authorization.json",
+        auth_enabled: bool = True,
+        admin_ids: Optional[List[str]] = None,
+    ):
         """
         Initialize the AuthorizationManager.
 
         Args:
             config_path: Path to the authorization configuration file
             auth_enabled: Whether authorization is enabled (default: True)
+            admin_ids: Administrator IDs from the main YAML configuration
         """
         self.logger = logging.getLogger("similubot.auth")
         self.config_path = config_path
         self.auth_enabled = auth_enabled
         self.user_permissions: Dict[str, UserPermissions] = {}
-        self.admin_ids: Set[str] = set()
+        self.admin_ids: Set[str] = {str(user_id) for user_id in admin_ids or []}
         self.notify_admins_on_unauthorized: bool = True
         
         # Permission cache for performance
@@ -56,8 +64,6 @@ class AuthorizationManager:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
             
-            # Load admin settings
-            self.admin_ids = set(str(uid) for uid in config_data.get("admin_ids", []))
             self.notify_admins_on_unauthorized = config_data.get("notify_admins_on_unauthorized", True)
             
             # Load user permissions
@@ -65,16 +71,6 @@ class AuthorizationManager:
             for user_data in config_data.get("users", []):
                 user_perms = UserPermissions.from_dict(user_data)
                 self.user_permissions[user_perms.user_id] = user_perms
-            
-            # Add admin users to permissions if not already present
-            for admin_id in self.admin_ids:
-                if admin_id not in self.user_permissions:
-                    self.user_permissions[admin_id] = UserPermissions(
-                        user_id=admin_id,
-                        permission_level=PermissionLevel.ADMIN,
-                        modules=set(ModulePermission),
-                        notes="Auto-added administrator"
-                    )
             
             self.logger.info(f"Loaded authorization config: {len(self.user_permissions)} users, {len(self.admin_ids)} admins")
             
@@ -86,13 +82,12 @@ class AuthorizationManager:
     def _create_default_config(self) -> None:
         """Create a default authorization configuration file."""
         default_config = {
-            "admin_ids": [],
             "notify_admins_on_unauthorized": True,
             "users": [
                 {
                     "user_id": "EXAMPLE_USER_ID_123456789",
                     "permission_level": "full",
-                    "modules": ["mega_download", "novelai", "general"],
+                    "modules": ["mega_download", "general"],
                     "notes": "Example user with full access - replace with actual user ID"
                 },
                 {
@@ -138,8 +133,10 @@ class AuthorizationManager:
         # If auth is disabled, everyone has access
         if not self.auth_enabled:
             return True
-        
+
         user_id = str(user_id)
+        if user_id in self.admin_ids:
+            return True
         
         # Check cache first
         cache_key = f"{command_name or feature_name or 'general'}"
@@ -179,14 +176,7 @@ class AuthorizationManager:
         Returns:
             True if user is admin, False otherwise
         """
-        if not self.auth_enabled:
-            return True  # When auth is disabled, everyone has admin privileges
-        
-        user_id = str(user_id)
-        return user_id in self.admin_ids or (
-            user_id in self.user_permissions and 
-            self.user_permissions[user_id].is_admin()
-        )
+        return str(user_id) in self.admin_ids
 
     def get_user_permissions(self, user_id: str) -> Optional[UserPermissions]:
         """
@@ -280,7 +270,6 @@ class AuthorizationManager:
         """Save current configuration to file."""
         try:
             config_data = {
-                "admin_ids": list(self.admin_ids),
                 "notify_admins_on_unauthorized": self.notify_admins_on_unauthorized,
                 "users": [user_perms.to_dict() for user_perms in self.user_permissions.values()]
             }
@@ -304,11 +293,10 @@ class AuthorizationManager:
             Dictionary with authorization statistics
         """
         stats = {
-            "total_users": len(self.user_permissions),
-            "admin_users": len([u for u in self.user_permissions.values() if u.is_admin()]),
+            "total_users": len(set(self.user_permissions) | self.admin_ids),
+            "admin_users": len(self.admin_ids),
             "full_access_users": len([u for u in self.user_permissions.values() if u.permission_level == PermissionLevel.FULL]),
             "module_access_users": len([u for u in self.user_permissions.values() if u.permission_level == PermissionLevel.MODULE]),
             "no_access_users": len([u for u in self.user_permissions.values() if u.permission_level == PermissionLevel.NONE])
         }
         return stats
-

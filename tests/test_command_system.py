@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from similubot.core.command_registry import CommandRegistry, CommandInfo
 from similubot.commands.mega_commands import MegaCommands
-from similubot.commands.novelai_commands import NovelAICommands
 from similubot.commands.auth_commands import AuthCommands
 from similubot.commands.general_commands import GeneralCommands
 
@@ -79,38 +78,6 @@ class TestCommandRegistry(unittest.TestCase):
 
         self.assertEqual(group.name, "testgroup")
         self.mock_bot.add_command.assert_called()
-
-    async def test_argument_validation_novelai_pattern(self):
-        """Test argument validation for NovelAI pattern."""
-        # Create NovelAI command info with actual callback signature
-        def mock_nai_callback(self, ctx, *, args):
-            pass
-
-        command_info = CommandInfo(
-            name="nai",
-            callback=mock_nai_callback,
-            description="Generate an image using NovelAI"
-        )
-
-        mock_ctx = MagicMock()
-
-        # Mock the help display
-        self.registry._send_command_help = AsyncMock()
-
-        # Test with empty args (should fail validation)
-        result = await self.registry._validate_command_arguments(command_info, mock_ctx, "")
-        self.assertFalse(result)
-        self.registry._send_command_help.assert_called_once()
-
-        # Reset mock
-        self.registry._send_command_help.reset_mock()
-
-        # Test with valid prompt (should pass validation)
-        result = await self.registry._validate_command_arguments(
-            command_info, mock_ctx, "beautiful landscape"
-        )
-        self.assertTrue(result)
-        self.registry._send_command_help.assert_not_called()
 
     async def test_argument_validation_mega_pattern(self):
         """Test argument validation for MEGA pattern."""
@@ -184,29 +151,6 @@ class TestCommandHelpSystem(unittest.TestCase):
         self.assertIn("Help: !mega", embed.title)
         self.assertIn("Download a file from MEGA", embed.description)
 
-    async def test_novelai_command_help_display(self):
-        """Test NovelAI command help display."""
-        mock_ctx = MagicMock()
-        mock_ctx.bot.command_prefix = "!"
-        mock_ctx.reply = AsyncMock()
-
-        command_info = CommandInfo(
-            name="nai",
-            callback=MagicMock(),
-            description="Generate an image using NovelAI"
-        )
-
-        await self.registry._send_command_help(command_info, mock_ctx)
-
-        # Verify help was sent
-        mock_ctx.reply.assert_called_once()
-        call_args = mock_ctx.reply.call_args[1]
-        embed = call_args['embed']
-
-        # Verify embed content
-        self.assertIn("Help: !nai", embed.title)
-        self.assertIn("Generate an image", embed.description)
-
     async def test_auth_command_help_display(self):
         """Test auth command help display."""
         mock_ctx = MagicMock()
@@ -271,29 +215,6 @@ class TestCommandIntegration(unittest.TestCase):
         self.assertIsNotNone(command_info.usage_examples)
         self.assertIsNotNone(command_info.help_text)
 
-    async def test_novelai_commands_integration(self):
-        """Test NovelAI commands integration with help system."""
-        # Create mock dependencies
-        mock_config = MagicMock()
-        mock_config.get_novelai_upload_service.return_value = "discord"
-
-        novelai_commands = NovelAICommands(
-            config=mock_config,
-            image_generator=MagicMock(),
-            catbox_uploader=MagicMock(),
-            discord_uploader=MagicMock()
-        )
-
-        # Register commands
-        novelai_commands.register_commands(self.registry)
-
-        # Verify command was registered with help info
-        self.assertIn("nai", self.registry._commands)
-        command_info = self.registry._commands["nai"]
-
-        self.assertIsNotNone(command_info.usage_examples)
-        self.assertIsNotNone(command_info.help_text)
-
     async def test_auth_commands_integration(self):
         """Test auth commands integration with help system."""
         # Create mock auth manager
@@ -324,31 +245,13 @@ class TestCommandArgumentParsing(unittest.TestCase):
             unauthorized_handler=self.mock_unauthorized_handler
         )
 
-    async def test_novelai_argument_joining(self):
-        """Test NovelAI argument joining for keyword-only pattern."""
-        # Create mock callback with NovelAI signature
-        mock_callback = AsyncMock()
-
-        # Mock the signature inspection
-        def mock_nai_callback(ctx, *, args):
-            pass
-
-        mock_ctx = MagicMock()
-        test_args = ["beautiful", "landscape,", "mountains,", "sunset"]
-
-        # Test argument joining
-        await self.registry._call_command_callback(mock_nai_callback, mock_ctx, *test_args)
-
-        # The callback should be called with joined arguments
-        # This tests the internal logic of argument processing
-
     def test_signature_detection(self):
         """Test command signature detection."""
-        # Test NovelAI pattern detection
-        def nai_callback(ctx, *, args):
+        # Test keyword-only text pattern detection
+        def text_callback(ctx, *, args):
             pass
 
-        sig = inspect.signature(nai_callback)
+        sig = inspect.signature(text_callback)
         params = list(sig.parameters.values())
 
         # Should detect keyword-only pattern

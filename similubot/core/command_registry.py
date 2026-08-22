@@ -1,8 +1,9 @@
 """Command registry system for SimiluBot."""
 import inspect
 import logging
-from typing import Dict, List, Callable, Any, Optional
 from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional
+
 import discord
 from discord.ext import commands
 
@@ -250,7 +251,7 @@ class CommandRegistry:
         Call a command callback, handling both instance methods and regular functions.
 
         This method properly handles the argument passing for commands that expect
-        variable-length text input (like NovelAI commands with *, args: str).
+        variable-length text input (callbacks with ``*, args: str``).
 
         Args:
             callback: The command callback function
@@ -285,7 +286,6 @@ class CommandRegistry:
             params[1].kind == inspect.Parameter.KEYWORD_ONLY and
             params[1].name == 'args'):
 
-            # This is the NovelAI command pattern: (ctx, *, args: str)
             # Join all arguments into a single string
             args_str = ' '.join(str(arg) for arg in args) if args else ''
             self.logger.debug(f"Using keyword-only args pattern: '{args_str}'")
@@ -326,12 +326,11 @@ class CommandRegistry:
 
         # Check for specific command patterns that need special handling
 
-        # NovelAI pattern: (*, args: str) - requires at least some text
+        # Keyword-only text pattern: (*, args: str) - requires at least some text
         if (len(params) == 1 and
             params[0].kind == inspect.Parameter.KEYWORD_ONLY and
             params[0].name == 'args'):
 
-            # For NovelAI commands, check if args is empty
             if not args or (len(args) == 1 and not args[0].strip()):
                 await self._send_command_help(command_info, ctx)
                 return False
@@ -401,32 +400,6 @@ class CommandRegistry:
                 inline=False
             )
 
-        elif command_info.name == "nai":
-            embed.add_field(
-                name="📝 Usage",
-                value=f"`{ctx.bot.command_prefix}nai <prompt> [options]`",
-                inline=False
-            )
-
-            examples = [
-                f"`{ctx.bot.command_prefix}nai beautiful landscape, mountains, sunset`",
-                f"`{ctx.bot.command_prefix}nai anime girl with blue hair discord`",
-                f"`{ctx.bot.command_prefix}nai fantasy scene size:landscape`",
-                f"`{ctx.bot.command_prefix}nai group scene char1:[elf warrior] char2:[mage]`"
-            ]
-
-            embed.add_field(
-                name="💡 Examples",
-                value="\n".join(examples),
-                inline=False
-            )
-
-            embed.add_field(
-                name="ℹ️ Options",
-                value="• `discord/catbox` - Upload service\n• `size:portrait/landscape/square` - Image dimensions\n• `char1:[desc] char2:[desc]` - Multi-character generation",
-                inline=False
-            )
-
         elif command_info.name == "auth":
             embed.add_field(
                 name="📝 Available Subcommands",
@@ -439,13 +412,20 @@ class CommandRegistry:
 
             embed.add_field(
                 name="ℹ️ Permission Levels",
-                value="• `admin` - Full admin access\n• `full` - Access to all modules\n• `module` - Access to specific modules\n• `none` - No access",
+                value="• `full` - Access to all modules\n"
+                      "• `module` - Access to specific modules\n"
+                      "• `none` - No access\n"
+                      "• Administrators are configured in `config.yaml`",
                 inline=False
             )
 
             embed.add_field(
                 name="🔧 Available Modules",
-                value="• `mega_download` - MEGA link processing\n• `novelai` - AI image generation\n• `general` - General bot commands",
+                value="• `mega_download` - MEGA link processing\n"
+                      "• `ai_conversation` - AI conversations\n"
+                      "• `music_playback` - Music playback\n"
+                      "• `general` - General bot commands\n"
+                      "• NovelAI access is managed with `/nai admin`",
                 inline=False
             )
 

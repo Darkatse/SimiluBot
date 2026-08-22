@@ -1,9 +1,12 @@
 """Configuration manager for SimiluBot."""
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
 import yaml
 from dotenv import load_dotenv
+
 
 class ConfigManager:
     """
@@ -28,7 +31,8 @@ class ConfigManager:
         self.config: Dict[str, Any] = {}
 
         # Load environment variables from .env file
-        load_dotenv()
+        load_dotenv(Path.cwd() / ".env")
+        load_dotenv(Path.home() / ".env")
 
         self._load_config()
 
@@ -92,7 +96,7 @@ class ConfigManager:
         Raises:
             ValueError: If the Discord bot token is not set
         """
-        token = self.get('discord.token')
+        token = os.getenv("DISCORD_TOKEN") or self.get('discord.token')
         if not token or token == "YOUR_DISCORD_BOT_TOKEN_HERE":
             self.logger.error("Discord bot token not set in configuration")
             raise ValueError("Discord bot token not set in configuration")
@@ -144,15 +148,6 @@ class ConfigManager:
             The upload service name for MEGA downloads
         """
         return self.get('upload.mega_downloads', self.get_default_upload_service())
-
-    def get_novelai_upload_service(self) -> str:
-        """
-        Get the upload service for NovelAI generated images.
-
-        Returns:
-            The upload service name for NovelAI images
-        """
-        return self.get('upload.novelai_images', 'discord')
 
     def get_catbox_user_hash(self) -> Optional[str]:
         """
@@ -209,10 +204,9 @@ class ConfigManager:
         Raises:
             ValueError: If the NovelAI API key is not set
         """
-        api_key = self.get('novelai.api_key')
-        if not api_key or api_key == "YOUR_NOVELAI_API_KEY_HERE":
-            self.logger.error("NovelAI API key not set in configuration")
-            raise ValueError("NovelAI API key not set in configuration")
+        api_key = os.getenv("NOVELAI_KEY")
+        if not api_key:
+            raise ValueError("NOVELAI_KEY is not set")
         return api_key
 
     def is_mega_enabled(self) -> bool:
@@ -276,7 +270,16 @@ class ConfigManager:
         Returns:
             The default NovelAI model name
         """
-        return self.get('novelai.default_model', 'nai-diffusion-3')
+        return self.get('novelai.default_model', 'nai-diffusion-5-curated')
+
+    def get_novelai_state_path(self) -> str:
+        """Get the SQLite path for NovelAI preferences and policy."""
+        return self.get('novelai.state_path', 'data/novelai.sqlite3')
+
+    def get_command_guild_id(self) -> Optional[int]:
+        """Get an optional development guild for immediate slash-command sync."""
+        guild_id = self.get('discord.command_guild_id')
+        return int(guild_id) if guild_id else None
 
     def get_novelai_timeout(self) -> int:
         """
@@ -286,23 +289,6 @@ class ConfigManager:
             The timeout in seconds
         """
         return self.get('novelai.timeout', 120)
-
-    def get_novelai_default_parameters(self) -> Dict[str, Any]:
-        """
-        Get the default NovelAI generation parameters.
-
-        Returns:
-            Dictionary of default parameters
-        """
-        return self.get('novelai.default_parameters', {
-            'width': 832,
-            'height': 1216,
-            'steps': 28,
-            'scale': 5.0,
-            'sampler': 'k_euler',
-            'n_samples': 1,
-            'seed': -1
-        })
 
     # AI Configuration Methods
     def get_env(self, key: str, default: Any = None) -> Any:

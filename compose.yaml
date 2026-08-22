@@ -1,0 +1,24 @@
+name: similubot
+
+services:
+  bot:
+    build: .
+    image: similubot:latest
+    init: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./config/config.yaml:/app/config/config.yaml:ro
+      - data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  data:

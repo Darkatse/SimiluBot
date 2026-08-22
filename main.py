@@ -11,6 +11,7 @@ from similubot.bot import SimiluBot
 from similubot.utils.config_manager import ConfigManager
 from similubot.utils.logger import setup_logger
 
+
 def main() -> int:
     """
     Main entry point for the SimiluBot application.
@@ -50,8 +51,7 @@ def main() -> int:
             logger.info("✅ Discord token retrieved from configuration")
         except ValueError as e:
             logger.error(f"❌ Discord token configuration error: {e}")
-            logger.error("Please check your config/config.yaml file and ensure the Discord token is set")
-            logger.error("Example: discord.token: 'YOUR_ACTUAL_BOT_TOKEN_HERE'")
+            logger.error("Set DISCORD_TOKEN or discord.token in config/config.yaml")
             return 1
 
         # Initialize the bot
@@ -98,10 +98,7 @@ def _log_bot_configuration(logger: logging.Logger, config: ConfigManager, bot: S
     logger.info(f"   MEGA Functionality: {'✅ Enabled' if config.is_mega_enabled() and bot.mega_commands.is_available() else '❌ Disabled'}")
     logger.info(f"   Default Bitrate: {config.get_default_bitrate()} kbps")
     logger.info(f"   MEGA Upload Service: {config.get_mega_upload_service()}")
-    logger.info(f"   NovelAI Available: {'✅ Yes' if bot.image_generator else '❌ No'}")
-
-    if bot.image_generator:
-        logger.info(f"   NovelAI Upload Service: {config.get_novelai_upload_service()}")
+    logger.info(f"   NovelAI Available: {'✅ Yes' if bot.nai_service else '❌ No'}")
 
     if config.is_auth_enabled():
         admin_count = len(config.get_admin_ids())

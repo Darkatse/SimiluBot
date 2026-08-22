@@ -15,7 +15,7 @@ class PermissionLevel(Enum):
 class ModulePermission(Enum):
     """Available module permissions."""
     MEGA_DOWNLOAD = "mega_download"     # MEGA link processing and audio conversion
-    NOVELAI_GENERATION = "novelai"     # NovelAI image generation
+    NOVELAI_GENERATION = "novelai"     # Legacy config compatibility; /nai has its own policy
     AI_CONVERSATION = "ai_conversation" # AI conversation and assistance
     MUSIC_PLAYBACK = "music_playback"   # Music playback and queue management
     GENERAL_COMMANDS = "general"       # General bot commands (about, help, etc.)
@@ -98,9 +98,6 @@ COMMAND_MODULE_MAP = {
     # MEGA download commands
     "mega": ModulePermission.MEGA_DOWNLOAD,
 
-    # NovelAI commands
-    "nai": ModulePermission.NOVELAI_GENERATION,
-
     # AI conversation commands
     "ai": ModulePermission.AI_CONVERSATION,
 
@@ -140,8 +137,6 @@ def get_feature_module(feature_name: str) -> ModulePermission:
         "mega_auto_detection": ModulePermission.MEGA_DOWNLOAD,
         "mega_link_processing": ModulePermission.MEGA_DOWNLOAD,
         "audio_conversion": ModulePermission.MEGA_DOWNLOAD,
-        "novelai_generation": ModulePermission.NOVELAI_GENERATION,
-        "image_generation": ModulePermission.NOVELAI_GENERATION,
         "ai_conversation": ModulePermission.AI_CONVERSATION,
         "ai_generation": ModulePermission.AI_CONVERSATION,
         "music_playback": ModulePermission.MUSIC_PLAYBACK,

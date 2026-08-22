@@ -8,12 +8,14 @@ A Discord bot that downloads media from MEGA links, converts them to AAC format,
 - Downloads media files from MEGA links
 - Converts media files to AAC format with configurable bitrate
 - Uploads converted files to CatBox (default) or Discord
+- Generates NovelAI V5 images with per-user defaults and artist macros
+- Applies per-guild user/channel allowlists to NovelAI commands
 - Supports various input formats (MP4, MP3, AVI, MKV, etc.)
 - Modular and extensible architecture
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - FFmpeg (must be installed and available in PATH)
 - Discord Bot Token
 - MEGA account (optional, for better download speeds)
@@ -42,12 +44,20 @@ A Discord bot that downloads media from MEGA links, converts them to AAC format,
      token: "YOUR_DISCORD_BOT_TOKEN_HERE"
    ```
 
+5. Put your NovelAI persistent API token in `~/.env` if image generation is enabled:
+   ```dotenv
+   NOVELAI_KEY=...
+   ```
+
 ## Configuration
 
 The `config/config.yaml` file contains all the configuration options for the bot:
 
-- `discord.token`: Your Discord bot token
+- `DISCORD_TOKEN`: Preferred Discord bot token source; `discord.token` remains a YAML fallback
 - `discord.command_prefix`: Command prefix for the bot (default: `!`)
+- `discord.command_guild_id`: Optional guild for immediate slash-command sync during development
+- `authorization.admin_ids`: Users allowed to manage NovelAI access and paid generation
+- `novelai.state_path`: SQLite storage for preferences, macros, and access policy
 - `download.temp_dir`: Directory to store temporary files
 - `conversion.default_bitrate`: Default AAC bitrate in kbps (default: `128`)
 - `conversion.supported_formats`: List of supported input formats
@@ -67,9 +77,23 @@ The `config/config.yaml` file contains all the configuration options for the bot
 
 2. In Discord, you can use the following commands:
    - `!mega <url> [bitrate]`: Download a file from MEGA and convert it to AAC format
+   - `/nai draw`: Generate an image with NovelAI V5
+   - `/nai defaults`, `/nai artist`, `/nai quota`: Manage personal generation choices
+   - `/nai admin`: Manage guild access (configured admins only)
    - `!about`: Show information about the bot
 
 The bot will also automatically detect and process MEGA links in messages.
+
+## Docker Compose
+
+```bash
+cp .env.example .env
+cp config/config.docker.yaml.example config/config.yaml
+docker compose up -d --build
+docker compose logs -f bot
+```
+
+Set `DISCORD_TOKEN` and `NOVELAI_KEY` in `.env`, then replace the guild and administrator IDs in `config/config.yaml`. Runtime state is kept in the Compose `data` volume.
 
 ## Project Structure
 
@@ -79,6 +103,8 @@ SimiluBot/
 │   └── config.yaml
 ├── similubot/
 │   ├── bot.py                 # Main Discord bot implementation
+│   ├── novelai/               # Protocol, service, and SQLite state
+│   ├── commands/nai.py        # NovelAI slash-command UI
 │   ├── downloaders/
 │   │   └── mega_downloader.py # MEGA download functionality
 │   ├── converters/

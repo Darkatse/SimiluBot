@@ -17,12 +17,12 @@ The authorization system consists of three main components:
 - **`none`** - No access to any bot features
 - **`module`** - Access to specific modules only
 - **`full`** - Full access to all bot features
-- **`admin`** - Administrative access with permission management capabilities
+- Administrators are listed in `config.yaml`; they are not a mutable permission level
 
 ### Module Permissions
 
 - **`mega_download`** - MEGA link processing and audio conversion
-- **`novelai`** - NovelAI image generation
+- **`novelai`** - Legacy value accepted when reading old files; `/nai` now uses its guild policy
 - **`music_playback`** - Music playback and queue management
 - **`general`** - General bot commands (about, help, etc.)
 
@@ -46,13 +46,12 @@ The authorization configuration file is automatically created with example users
 
 ```json
 {
-  "admin_ids": ["123456789012345678"],
   "notify_admins_on_unauthorized": true,
   "users": [
     {
       "user_id": "EXAMPLE_USER_ID_123456789",
       "permission_level": "full",
-      "modules": ["mega_download", "novelai", "general"],
+      "modules": ["mega_download", "general"],
       "notes": "Example user with full access - replace with actual user ID"
     },
     {
@@ -95,7 +94,6 @@ Shows detailed permissions for a specific user.
 ```
 !auth add 123456789012345678 full
 !auth add 987654321098765432 module mega_download
-!auth add 111222333444555666 module mega_download novelai
 !auth add 999888777666555444 none
 ```
 
@@ -103,11 +101,10 @@ Shows detailed permissions for a specific user.
 - `full` - Full access to all features
 - `module` - Access to specified modules only
 - `none` - No access
-- `admin` - Administrative privileges
 
 **Available Modules:**
 - `mega_download` - MEGA link processing
-- `novelai` - NovelAI image generation
+- `novelai` - Legacy compatibility only; use `/nai admin` for image access
 - `music_playback` - Music playback and queue management
 - `general` - General commands
 
@@ -124,7 +121,7 @@ Removes a user from the authorization system.
 ### Commands
 
 - **`!mega`** - Requires `mega_download` module permission
-- **`!nai`** - Requires `novelai` module permission
+- **`/nai`** - Uses the independent per-guild user/channel policy described in `NOVELAI_INTEGRATION.md`
 - **`!music`** - Requires `music_playback` module permission
 - **`!about`** - Requires `general` module permission (usually granted to all users)
 

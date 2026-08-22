@@ -1,0 +1,44 @@
+discord:
+  command_prefix: "!"
+  command_guild_id: "YOUR_DISCORD_GUILD_ID"
+
+authorization:
+  enabled: true
+  admin_ids:
+    - "YOUR_DISCORD_USER_ID"
+  config_path: "/app/data/authorization.json"
+
+mega:
+  enabled: false
+
+download:
+  temp_dir: "/app/temp"
+
+conversion:
+  default_bitrate: 128
+  supported_formats: [mp4, mp3, wav, flac, ogg, webm]
+
+upload:
+  mega_downloads: "discord"
+  default_service: "discord"
+  catbox:
+    user_hash: ""
+
+novelai:
+  base_url: "https://image.novelai.net"
+  default_model: "nai-diffusion-5-curated"
+  state_path: "/app/data/novelai.sqlite3"
+  timeout: 120
+
+ai:
+  enabled: false
+  providers: {}
+
+music:
+  enabled: false
+
+logging:
+  level: "INFO"
+  file: null
+  max_size: 10485760
+  backup_count: 3

@@ -95,7 +95,6 @@ Add AI permissions to your `config/authorization.json`:
       "permission_level": "full",
       "modules": [
         "mega_download",
-        "novelai",
         "ai_conversation",
         "general"
       ],

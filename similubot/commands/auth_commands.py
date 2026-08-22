@@ -1,12 +1,13 @@
 """Authorization management commands."""
 import logging
 from typing import Set
+
 import discord
 from discord.ext import commands
 
-from similubot.core.command_registry import CommandRegistry
 from similubot.auth.authorization_manager import AuthorizationManager
-from similubot.auth.permission_types import PermissionLevel, ModulePermission
+from similubot.auth.permission_types import ModulePermission, PermissionLevel
+from similubot.core.command_registry import CommandRegistry
 
 
 class AuthCommands:
@@ -39,7 +40,7 @@ class AuthCommands:
             "!auth status - Show authorization system status and statistics",
             "!auth user 123456789 - Show permissions for a specific user",
             "!auth add 123456789 full - Grant full access to a user",
-            "!auth add 123456789 module mega_download novelai - Grant specific module access",
+            "!auth add 123456789 module mega_download - Grant specific module access",
             "!auth remove 123456789 - Remove user from authorization system"
         ]
 
@@ -199,7 +200,7 @@ class AuthCommands:
 
         embed.add_field(
             name="Admin Status",
-            value="✅ Yes" if user_perms.is_admin() else "❌ No",
+            value="✅ Yes" if self.auth_manager.is_admin(user_id) else "❌ No",
             inline=True
         )
 
@@ -233,14 +234,17 @@ class AuthCommands:
         Args:
             ctx: Discord command context
             user_id: Discord user ID
-            level: Permission level (full, module, none, admin)
+            level: Permission level (full, module, none)
             modules: Module permissions (for module level)
         """
         # Validate permission level
         try:
             permission_level = PermissionLevel(level.lower())
         except ValueError:
-            await ctx.reply(f"❌ Invalid permission level: `{level}`. Valid levels: `full`, `module`, `none`, `admin`")
+            await ctx.reply(f"❌ Invalid permission level: `{level}`. Valid levels: `full`, `module`, `none`")
+            return
+        if permission_level == PermissionLevel.ADMIN:
+            await ctx.reply("❌ Administrators are configured in config.yaml, not through Discord commands.")
             return
 
         # Validate modules if provided
@@ -248,10 +252,17 @@ class AuthCommands:
         if modules:
             for module_name in modules:
                 try:
-                    module_set.add(ModulePermission(module_name.lower()))
+                    module = ModulePermission(module_name.lower())
                 except ValueError:
-                    await ctx.reply(f"❌ Invalid module: `{module_name}`. Valid modules: `mega_download`, `novelai`, `general`")
+                    await ctx.reply(
+                        f"❌ Invalid module: `{module_name}`. Valid modules: "
+                        "`mega_download`, `ai_conversation`, `music_playback`, `general`"
+                    )
                     return
+                if module == ModulePermission.NOVELAI_GENERATION:
+                    await ctx.reply("❌ NovelAI access is managed with `/nai admin`.")
+                    return
+                module_set.add(module)
 
         # Add/update user
         success = self.auth_manager.add_user(
@@ -320,7 +331,7 @@ class AuthCommands:
             return
 
         # Prevent removing admin users
-        if user_perms.is_admin() and user_id in self.auth_manager.admin_ids:
+        if user_id in self.auth_manager.admin_ids:
             await ctx.reply(f"❌ Cannot remove admin user `{user_id}`. Remove from admin_ids in config first.")
             return
 

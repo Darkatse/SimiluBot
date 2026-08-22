@@ -117,14 +117,12 @@ class TestPermissionTypes(unittest.TestCase):
     def test_command_module_mapping(self):
         """Test command to module mapping."""
         assert get_command_module("mega") == ModulePermission.MEGA_DOWNLOAD
-        assert get_command_module("nai") == ModulePermission.NOVELAI_GENERATION
         assert get_command_module("about") == ModulePermission.GENERAL_COMMANDS
         assert get_command_module("unknown_command") == ModulePermission.GENERAL_COMMANDS
 
     def test_feature_module_mapping(self):
         """Test feature to module mapping."""
         assert get_feature_module("mega_auto_detection") == ModulePermission.MEGA_DOWNLOAD
-        assert get_feature_module("novelai_generation") == ModulePermission.NOVELAI_GENERATION
         assert get_feature_module("unknown_feature") == ModulePermission.GENERAL_COMMANDS
 
 
@@ -168,7 +166,6 @@ class TestAuthorizationManager(unittest.TestCase):
         with open(self.config_path, 'r') as f:
             config_data = json.load(f)
         
-        assert "admin_ids" in config_data
         assert "notify_admins_on_unauthorized" in config_data
         assert "users" in config_data
         assert isinstance(config_data["users"], list)
@@ -224,9 +221,8 @@ class TestAuthorizationManager(unittest.TestCase):
 
     def test_auth_manager_admin_privileges(self):
         """Test admin privilege handling."""
-        # Create config with admin IDs
+        # Administrators come from the main YAML configuration.
         config_data = {
-            "admin_ids": ["999999999"],
             "notify_admins_on_unauthorized": True,
             "users": []
         }
@@ -236,14 +232,14 @@ class TestAuthorizationManager(unittest.TestCase):
         
         auth_manager = AuthorizationManager(
             config_path=self.config_path,
-            auth_enabled=True
+            auth_enabled=True,
+            admin_ids=["999999999"],
         )
         
-        # Admin should be automatically added to permissions
+        # Admin identity does not duplicate itself into the mutable user file.
         assert auth_manager.is_admin("999999999")
         user_perms = auth_manager.get_user_permissions("999999999")
-        assert user_perms is not None
-        assert user_perms.permission_level == PermissionLevel.ADMIN
+        assert user_perms is None
         
         # Admin should have access to everything
         assert auth_manager.is_authorized("999999999", command_name="mega")
@@ -260,12 +256,12 @@ class TestAuthorizationManager(unittest.TestCase):
         auth_manager.add_user("111111111", PermissionLevel.FULL, set())
         auth_manager.add_user("222222222", PermissionLevel.MODULE, {ModulePermission.MEGA_DOWNLOAD})
         auth_manager.add_user("333333333", PermissionLevel.NONE, set())
-        auth_manager.add_user("444444444", PermissionLevel.ADMIN, set())
+        auth_manager.add_user("444444444", PermissionLevel.FULL, set())
         
         stats = auth_manager.get_stats()
         assert stats["total_users"] == 4
-        assert stats["admin_users"] == 1
-        assert stats["full_access_users"] == 1
+        assert stats["admin_users"] == 0
+        assert stats["full_access_users"] == 2
         assert stats["module_access_users"] == 1
         assert stats["no_access_users"] == 1
 

@@ -7,7 +7,6 @@ from discord.ext import commands
 
 from similubot.core.command_registry import CommandRegistry
 from similubot.utils.config_manager import ConfigManager
-from similubot.generators.image_generator import ImageGenerator
 
 
 class GeneralCommands:
@@ -17,17 +16,17 @@ class GeneralCommands:
     Handles informational commands and bot status information.
     """
 
-    def __init__(self, config: ConfigManager, image_generator: Optional[ImageGenerator] = None):
+    def __init__(self, config: ConfigManager, novelai_available: bool = False):
         """
         Initialize general commands.
 
         Args:
             config: Configuration manager
-            image_generator: NovelAI image generator instance (None if not configured)
+            novelai_available: Whether slash-based NovelAI commands are configured
         """
         self.logger = logging.getLogger("similubot.commands.general")
         self.config = config
-        self.image_generator = image_generator
+        self.novelai_available = novelai_available
 
     def register_commands(self, registry: CommandRegistry) -> None:
         """
@@ -87,14 +86,11 @@ class GeneralCommands:
         )
 
         # Add NovelAI command if available
-        if self.image_generator:
-            nai_description = "Generate an AI image using NovelAI with the given text prompt."
-            nai_description += f"\nDefault upload: {self.config.get_novelai_upload_service()}"
-            nai_description += "\nAdd `discord` or `catbox` to override upload service."
-            nai_description += "\nAdd `char1:[description] char2:[description]` for multi-character generation."
-            nai_description += "\nAdd `size:portrait/landscape/square` to specify image dimensions."
+        if self.novelai_available:
+            nai_description = "Generate with NovelAI using your saved model, UC, guidance, and size defaults."
+            nai_description += "\nUse `/nai defaults`, `/nai artist`, and `/nai quota` to manage them."
             embed.add_field(
-                name=f"{ctx.bot.command_prefix}nai <prompt> [discord/catbox] [char1:[desc]...] [size:xxx]",
+                name="/nai draw prompt:<prompt>",
                 value=nai_description,
                 inline=False
             )
@@ -197,8 +193,8 @@ class GeneralCommands:
             core_commands = []
             core_commands.append(f"`{ctx.bot.command_prefix}mega <url> [bitrate]` - Download and convert MEGA files")
 
-            if self.image_generator:
-                core_commands.append(f"`{ctx.bot.command_prefix}nai <prompt>` - Generate AI images")
+            if self.novelai_available:
+                core_commands.append("`/nai draw` - Generate a NovelAI image")
 
             if self.config.is_ai_configured():
                 core_commands.append(f"`{ctx.bot.command_prefix}ai <prompt>` - AI conversation and assistance")
@@ -267,7 +263,7 @@ class GeneralCommands:
         features_status = []
         features_status.append(f"🔗 MEGA Downloads: ✅ Available")
 
-        if self.image_generator:
+        if self.novelai_available:
             features_status.append(f"🎨 NovelAI Generation: ✅ Available")
         else:
             features_status.append(f"🎨 NovelAI Generation: ❌ Not Configured")
@@ -283,8 +279,8 @@ class GeneralCommands:
         config_info.append(f"**Default Bitrate:** {self.config.get_default_bitrate()} kbps")
         config_info.append(f"**MEGA Upload Service:** {self.config.get_mega_upload_service()}")
 
-        if self.image_generator:
-            config_info.append(f"**NovelAI Upload Service:** {self.config.get_novelai_upload_service()}")
+        if self.novelai_available:
+            config_info.append(f"**NovelAI Model:** {self.config.get_novelai_default_model()}")
 
         embed.add_field(
             name="Configuration",

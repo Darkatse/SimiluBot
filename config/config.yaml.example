@@ -4,6 +4,7 @@
 discord:
   token: "YOUR_DISCORD_BOT_TOKEN_HERE"
   command_prefix: "!"
+  # command_guild_id: "123456789012345678"  # Optional: instant slash-command sync while developing
 
 # Authorization Configuration
 authorization:
@@ -38,8 +39,6 @@ conversion:
 upload:
   # Upload service for MEGA downloads (converted audio files)
   mega_downloads: "catbox"  # Options: "catbox", "discord"
-  # Upload service for NovelAI generated images
-  novelai_images: "discord"  # Options: "catbox", "discord"
   # Legacy fallback (deprecated - use specific services above)
   default_service: "catbox"  # Options: "catbox", "discord"
   catbox:
@@ -47,34 +46,10 @@ upload:
 
 # NovelAI Configuration
 novelai:
-  api_key: "YOUR_NOVELAI_API_KEY_HERE"  # Your NovelAI API key
+  # Put the persistent API token in NOVELAI_KEY, preferably in ~/.env.
   base_url: "https://image.novelai.net"  # NovelAI Image Generation API base URL
-  default_model: "nai-diffusion-4-5-curated"  # Default image generation model
-  default_parameters:
-    width: 832  # Default image width
-    height: 1216  # Default image height
-    steps: 23  # Number of generation steps
-    scale: 5.0  # CFG scale
-    sampler: "k_euler_ancestral"  # Sampling method
-    n_samples: 1  # Number of images to generate
-    seed: -1  # Random seed (-1 for random)
-    ucPreset: 0  # Undesired content preset (0-3)
-    qualityToggle: true  # Enable quality toggle
-    autoSmea: false  # Auto SMEA
-    dynamic_thresholding: false  # Dynamic thresholding
-    controlnet_strength: 1  # ControlNet strength
-    legacy: false  # Legacy mode
-    add_original_image: true  # Add original image
-    cfg_rescale: 0  # CFG rescale
-    noise_schedule: "karras"  # Noise schedule
-    legacy_v3_extend: false  # Legacy v3 extend
-    skip_cfg_above_sigma: null  # Skip CFG above sigma
-    use_coords: false  # Use coordinates
-    legacy_uc: false  # Legacy undesired content
-    normalize_reference_strength_multiple: true  # Normalize reference strength
-    deliberate_euler_ancestral_bug: false  # Deliberate Euler ancestral bug
-    prefer_brownian: true  # Prefer Brownian motion
-    negative_prompt: "blurry, lowres, upscaled, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, negative space, blank page"  # Default negative prompt
+  default_model: "nai-diffusion-5-curated"
+  state_path: "data/novelai.sqlite3"
   timeout: 120  # API request timeout in seconds
 
 # AI Conversation Configuration

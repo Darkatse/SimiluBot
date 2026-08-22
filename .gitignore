@@ -178,3 +178,6 @@ config/config.yaml
 
 # Temp Directory
 temp/
+
+# Runtime state
+data/

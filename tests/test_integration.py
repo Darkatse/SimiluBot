@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from similubot.core.command_registry import CommandRegistry
 from similubot.commands.mega_commands import MegaCommands
-from similubot.commands.novelai_commands import NovelAICommands
 from similubot.commands.auth_commands import AuthCommands
 
 
@@ -80,50 +79,6 @@ class TestCommandWorkflowIntegration(unittest.TestCase):
         mock_downloader.download.assert_called_once()
         mock_converter.convert_to_aac.assert_called_once()
         mock_catbox_uploader.upload.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_novelai_command_full_workflow(self):
-        """Test complete NovelAI command workflow."""
-        # Create mock dependencies
-        mock_config = MagicMock()
-        mock_config.get_novelai_upload_service.return_value = "discord"
-
-        mock_image_generator = MagicMock()
-        mock_image_generator.generate_image.return_value = (
-            True, b"image_data", {"prompt": "test"}, None
-        )
-
-        mock_catbox_uploader = MagicMock()
-        mock_discord_uploader = MagicMock()
-        mock_discord_uploader.upload.return_value = (True, MagicMock(), None)
-
-        # Create NovelAI commands
-        novelai_commands = NovelAICommands(
-            config=mock_config,
-            image_generator=mock_image_generator,
-            catbox_uploader=mock_catbox_uploader,
-            discord_uploader=mock_discord_uploader
-        )
-
-        # Register commands
-        novelai_commands.register_commands(self.registry)
-
-        # Create mock context
-        mock_ctx = MagicMock()
-        mock_ctx.author.id = "123456789"
-        mock_ctx.reply = AsyncMock()
-        mock_ctx.channel = MagicMock()
-
-        # Get wrapped command
-        command_info = self.registry._commands["nai"]
-        wrapped_command = self.registry._wrap_command_with_auth(command_info)
-
-        # Execute command
-        await wrapped_command(mock_ctx, args="beautiful landscape")
-
-        # Verify workflow
-        mock_image_generator.generate_image.assert_called_once()
-        mock_discord_uploader.upload.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_auth_command_full_workflow(self):
