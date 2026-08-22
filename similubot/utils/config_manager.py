@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 
 class ConfigManager:
@@ -29,6 +29,8 @@ class ConfigManager:
         self.logger = logging.getLogger("similubot.config")
         self.config_path = config_path
         self.config: Dict[str, Any] = {}
+        runtime_env = os.getenv("SIMILUBOT_ENV_FILE")
+        self.runtime_env_path = Path(runtime_env) if runtime_env else None
 
         # Load environment variables from .env file
         load_dotenv(Path.cwd() / ".env")
@@ -96,7 +98,7 @@ class ConfigManager:
         Raises:
             ValueError: If the Discord bot token is not set
         """
-        token = os.getenv("DISCORD_TOKEN") or self.get('discord.token')
+        token = self.get_env("DISCORD_TOKEN") or self.get('discord.token')
         if not token or token == "YOUR_DISCORD_BOT_TOKEN_HERE":
             self.logger.error("Discord bot token not set in configuration")
             raise ValueError("Discord bot token not set in configuration")
@@ -204,7 +206,7 @@ class ConfigManager:
         Raises:
             ValueError: If the NovelAI API key is not set
         """
-        api_key = os.getenv("NOVELAI_KEY")
+        api_key = self.get_env("NOVELAI_KEY")
         if not api_key:
             raise ValueError("NOVELAI_KEY is not set")
         return api_key
@@ -302,6 +304,10 @@ class ConfigManager:
         Returns:
             Environment variable value or default
         """
+        if self.runtime_env_path and self.runtime_env_path.is_file():
+            values = dotenv_values(self.runtime_env_path)
+            if key in values:
+                return values[key]
         return os.getenv(key, default)
 
     def is_ai_enabled(self) -> bool:

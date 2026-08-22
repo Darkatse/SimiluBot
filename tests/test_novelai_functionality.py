@@ -22,6 +22,7 @@ from similubot.novelai.domain import (
 )
 from similubot.novelai.service import GenerationResult, NaiService, NaiUserError
 from similubot.novelai.store import GuildPolicy, NaiStore
+from similubot.utils.config_manager import ConfigManager
 
 
 def test_slash_command_shape():
@@ -87,6 +88,20 @@ def test_novelai_error_is_localized_without_losing_diagnostics():
     assert str(error) == "NovelAI 请求过于频繁，请稍后重试"
     assert error.detail == "rate limit"
     assert error.correlation_id == "abc123"
+
+
+def test_novelai_key_hot_reloads_from_runtime_env(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("NOVELAI_KEY=first\n", encoding="utf-8")
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("SIMILUBOT_ENV_FILE", str(env_file))
+    config = ConfigManager(str(config_file))
+    client = NovelAIClient(config.get_novelai_api_key)
+
+    assert client._request_headers()["Authorization"] == "Bearer first"
+    env_file.write_text("NOVELAI_KEY=second\n", encoding="utf-8")
+    assert client._request_headers()["Authorization"] == "Bearer second"
 
 
 def test_concurrent_generation_lock_is_retried(monkeypatch):

@@ -84,7 +84,7 @@ class SimiluBot(commands.Bot):
 
         try:
             client = NovelAIClient(
-                self.config.get_novelai_api_key(),
+                self.config.get_novelai_api_key,
                 self.config.get_novelai_base_url(),
                 self.config.get_novelai_timeout(),
             )

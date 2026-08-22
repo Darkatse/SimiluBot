@@ -8,8 +8,11 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      SIMILUBOT_ENV_FILE: /run/secrets/similubot.env
     volumes:
       - ./config/config.yaml:/app/config/config.yaml:ro
+      - ./.env:/run/secrets/similubot.env:ro
       - data:/app/data
     security_opt:
       - no-new-privileges:true

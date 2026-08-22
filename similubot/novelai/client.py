@@ -8,6 +8,7 @@ import json
 import secrets
 import string
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -54,17 +55,14 @@ class NovelAIError(RuntimeError):
 class NovelAIClient:
     def __init__(
         self,
-        api_key: str,
+        api_key: str | Callable[[], str],
         base_url: str = "https://image.novelai.net",
         timeout: int = 120,
     ):
-        if not api_key:
+        self._api_key = api_key if callable(api_key) else lambda: api_key
+        if not self._api_key():
             raise ValueError("尚未设置 NOVELAI_KEY")
         self.base_url = base_url.rstrip("/")
-        self._headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._session: aiohttp.ClientSession | None = None
 
@@ -93,10 +91,12 @@ class NovelAIClient:
                 async with session.post(
                     f"{self.base_url}/ai/generate-image",
                     json=payload,
-                    headers={
-                        "X-Correlation-ID": correlation_id,
-                        "Accept": "application/zip",
-                    },
+                    headers=self._request_headers(
+                        {
+                            "X-Correlation-ID": correlation_id,
+                            "Accept": "application/zip",
+                        }
+                    ),
                 ) as response:
                     body = await response.read()
                 if response.status < 400:
@@ -140,7 +140,11 @@ class NovelAIClient:
     async def _request_json(self, method: str, path: str) -> dict[str, Any]:
         session = await self._get_session()
         try:
-            async with session.request(method, f"{self.base_url}{path}") as response:
+            async with session.request(
+                method,
+                f"{self.base_url}{path}",
+                headers=self._request_headers(),
+            ) as response:
                 body = await response.read()
                 if response.status >= 400:
                     raise self._api_error(body, response.status)
@@ -153,10 +157,18 @@ class NovelAIClient:
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                headers=self._headers, timeout=self._timeout
-            )
+            self._session = aiohttp.ClientSession(timeout=self._timeout)
         return self._session
+
+    def _request_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
+        api_key = self._api_key()
+        if not api_key:
+            raise ValueError("尚未设置 NOVELAI_KEY")
+        return {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            **(extra or {}),
+        }
 
     @staticmethod
     def _api_error(
